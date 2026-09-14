@@ -214,21 +214,21 @@ export function recordVmSession(userId) {
   evaluateAchievements(userId);
 }
 
+const STAT_UPDATE_QUERIES = {
+  ai_messages: 'UPDATE user_stats SET ai_messages = ai_messages + ?, updated_at = ? WHERE user_id = ?',
+  chat_messages: 'UPDATE user_stats SET chat_messages = chat_messages + ?, updated_at = ? WHERE user_id = ?',
+  bookmarks: 'UPDATE user_stats SET bookmarks = bookmarks + ?, updated_at = ? WHERE user_id = ?',
+  playlists: 'UPDATE user_stats SET playlists = playlists + ?, updated_at = ? WHERE user_id = ?',
+  profile_views: 'UPDATE user_stats SET profile_views = profile_views + ?, updated_at = ? WHERE user_id = ?',
+};
+
 export function bumpStat(userId, column, by = 1) {
   if (!userId) return;
-  const allowed = new Set([
-    'ai_messages',
-    'chat_messages',
-    'bookmarks',
-    'playlists',
-    'profile_views',
-  ]);
-  if (!allowed.has(column)) return;
+  const query = STAT_UPDATE_QUERIES[column];
+  if (!query) return;
   ensureStats(userId);
   const now = Date.now();
-  db.prepare(
-    `UPDATE user_stats SET ${column} = ${column} + ?, updated_at = ? WHERE user_id = ?`
-  ).run(Math.min(Math.max(1, by), 5), now, userId);
+  db.prepare(query).run(Math.min(Math.max(1, by), 5), now, userId);
   try {
     if (column === 'ai_messages') bumpUsage('ai', Math.min(Math.max(1, by), 5));
     if (column === 'chat_messages') bumpUsage('chat', Math.min(Math.max(1, by), 5));
