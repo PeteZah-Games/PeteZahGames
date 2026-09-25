@@ -171,7 +171,7 @@ export function listAnnouncementsHandler(req, res) {
   if (!requireAdmin(req, res)) return;
   const rows = db
     .prepare(
-      `SELECT a.id, a.title, a.content, a.active, a.created_by, a.created_at, a.updated_at,
+      `SELECT a.id, a.title, a.content, a.active, a.important, a.created_by, a.created_at, a.updated_at,
               a.target_user_id, a.target_ips, u.username as target_username
        FROM announcements a
        LEFT JOIN users u ON u.id = a.target_user_id
@@ -194,7 +194,7 @@ export function getActiveAnnouncementHandler(req, res) {
   if (uid) {
     const targeted = db
       .prepare(
-        `SELECT id, title, content, created_at, target_user_id, target_ips FROM announcements
+        `SELECT id, title, content, important, created_at, target_user_id, target_ips FROM announcements
          WHERE active = 1 AND target_user_id = ?
          ORDER BY created_at DESC LIMIT 8`
       )
@@ -204,7 +204,7 @@ export function getActiveAnnouncementHandler(req, res) {
 
   const ipCandidates = db
     .prepare(
-      `SELECT id, title, content, created_at, target_user_id, target_ips FROM announcements
+      `SELECT id, title, content, important, created_at, target_user_id, target_ips FROM announcements
        WHERE active = 1 AND target_ips IS NOT NULL AND target_ips != ''
        ORDER BY created_at DESC LIMIT 40`
     )
@@ -215,7 +215,7 @@ export function getActiveAnnouncementHandler(req, res) {
 
   const globals = db
     .prepare(
-      `SELECT id, title, content, created_at, target_user_id, target_ips FROM announcements
+      `SELECT id, title, content, important, created_at, target_user_id, target_ips FROM announcements
        WHERE active = 1
          AND (target_user_id IS NULL OR target_user_id = '')
          AND (target_ips IS NULL OR target_ips = '')
@@ -225,7 +225,12 @@ export function getActiveAnnouncementHandler(req, res) {
   for (const row of globals) byId.set(row.id, row);
 
   const announcements = [...byId.values()]
-    .sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
+    .sort((a, b) => {
+      const ia = a.important ? 1 : 0;
+      const ib = b.important ? 1 : 0;
+      if (ib !== ia) return ib - ia;
+      return (b.created_at || 0) - (a.created_at || 0);
+    })
     .slice(0, 12)
     .map(({ target_ips, ...rest }) => rest);
 
@@ -241,6 +246,7 @@ export function createAnnouncementHandler(req, res) {
   const title = typeof req.body?.title === 'string' ? req.body.title.trim().slice(0, 120) : '';
   const content = typeof req.body?.content === 'string' ? req.body.content.trim().slice(0, 4000) : '';
   if (!title || !content) return res.status(400).json({ error: 'Title and content required' });
+  const important = req.body?.important ? 1 : 0;
 
   let targetUserId = null;
   const targetRaw =
@@ -266,9 +272,9 @@ export function createAnnouncementHandler(req, res) {
   const id = randomUUID();
   const now = Date.now();
   db.prepare(
-    `INSERT INTO announcements (id, title, content, active, created_by, created_at, updated_at, target_user_id, target_ips)
-     VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)`
-  ).run(id, title, content, req.session.user.id, now, now, targetUserId, targetIpsJson);
+    `INSERT INTO announcements (id, title, content, active, important, created_by, created_at, updated_at, target_user_id, target_ips)
+     VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?)`
+  ).run(id, title, content, important, req.session.user.id, now, now, targetUserId, targetIpsJson);
 
   createMentionNotifications({
     actorId: req.session.user.id,

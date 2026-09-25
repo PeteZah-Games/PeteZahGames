@@ -526,7 +526,7 @@ export default function AccountPage({ onNavigate }: { onNavigate: (url: string) 
   const [ffHistory, setFfHistory] = useState<{ sessionId: string; userId: string; username?: string | null; startedAt: number; lastSeen: number; endedAt?: number | null; active?: boolean }[]>([]);
   const [ffHistoryTotal, setFfHistoryTotal] = useState(0);
   const [ffHistoryLoading, setFfHistoryLoading] = useState(false);
-  const [announcements, setAnnouncements] = useState<{ id: string; title: string; content: string; active: number; created_at: number; target_user_id?: string | null; target_username?: string | null; target_ips?: string[] }[]>([]);
+  const [announcements, setAnnouncements] = useState<{ id: string; title: string; content: string; active: number; important?: number; created_at: number; target_user_id?: string | null; target_username?: string | null; target_ips?: string[] }[]>([]);
   const [aiPrompts, setAiPrompts] = useState<{ id: string; preview: string; createdAt: number }[]>([]);
   const [mentions, setMentions] = useState<{ id: string; kind: string; refType: string; refId: string; body: string; createdAt: number; read: boolean; actorUsername: string | null }[]>([]);
   const [mentionsUnread, setMentionsUnread] = useState(0);
@@ -543,6 +543,7 @@ export default function AccountPage({ onNavigate }: { onNavigate: (url: string) 
   const [annContent, setAnnContent] = useState("");
   const [annTarget, setAnnTarget] = useState("");
   const [annIps, setAnnIps] = useState("");
+  const [annImportant, setAnnImportant] = useState(false);
   const [annBusy, setAnnBusy] = useState(false);
   const [annMsg, setAnnMsg] = useState("");
   const [badgeCatalog, setBadgeCatalog] = useState<BadgeInfo[]>([]);
@@ -1130,6 +1131,7 @@ export default function AccountPage({ onNavigate }: { onNavigate: (url: string) 
           content: annContent.trim(),
           targetUsername: annTarget.trim() || undefined,
           targetIps: annIps.trim() || undefined,
+          important: annImportant,
         }),
       });
       const d = await r.json();
@@ -1142,7 +1144,7 @@ export default function AccountPage({ onNavigate }: { onNavigate: (url: string) 
       setAnnContent("");
       setAnnTarget("");
       setAnnIps("");
-      const ips = d.announcement?.target_ips;
+      setAnnImportant(false);      const ips = d.announcement?.target_ips;
       setAnnMsg(
         d.announcement?.target_user_id
           ? "Sent to user"
@@ -4431,6 +4433,32 @@ export default function AccountPage({ onNavigate }: { onNavigate: (url: string) 
                       }}
                     />
                   </div>
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 10,
+                      cursor: "pointer",
+                      userSelect: "none",
+                      padding: "8px 10px",
+                      borderRadius: 8,
+                      border: `1px solid ${C.border}`,
+                      background: C.surface,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={annImportant}
+                      onChange={(e) => setAnnImportant(e.target.checked)}
+                      style={{ marginTop: 2 }}
+                    />
+                    <span>
+                      <span style={{ display: "block", fontSize: 12, fontWeight: 650, color: C.text }}>Important</span>
+                      <span style={{ display: "block", fontSize: 10, color: C.textSub, marginTop: 2 }}>
+                        Shows an Important tag and requires a 5s wait before dismiss
+                      </span>
+                    </span>
+                  </label>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <button onClick={createAnnouncement} disabled={annBusy} style={{
                       display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 8,
@@ -4462,6 +4490,15 @@ export default function AccountPage({ onNavigate }: { onNavigate: (url: string) 
                       }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                           <span style={{ flex: 1, fontSize: 12, fontWeight: 650, color: C.text }}>{a.title}</span>
+                          {a.important ? (
+                            <span style={{
+                              fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 5,
+                              background: "hsl(213 55% 40% / 0.2)",
+                              color: "hsl(213 80% 78%)",
+                            }}>
+                              Important
+                            </span>
+                          ) : null}
                           <span style={{
                             fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 5,
                             background: a.target_user_id

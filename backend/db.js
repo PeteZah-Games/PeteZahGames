@@ -288,6 +288,9 @@ try {
   if (!annCols.includes('target_ips')) {
     db.exec('ALTER TABLE announcements ADD COLUMN target_ips TEXT');
   }
+  if (!annCols.includes('important')) {
+    db.exec('ALTER TABLE announcements ADD COLUMN important INTEGER DEFAULT 0');
+  }
 } catch (e) {
   console.error('announcements migration error:', e);
 }
