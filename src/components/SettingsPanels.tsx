@@ -815,6 +815,20 @@ export function BehaviorSettings(props: Props) {
         <div style={{ borderBottom: `1px solid ${C.border}` }}>
           <ToggleRow
             C={C}
+            label="Rain on homepage"
+            desc="Use rain glass on petezah://newtab instead of the aurora fog mesh (off by default — rain can trip school filters)"
+            checked={s.rainOnHomepage === "true"}
+            onChange={() => {
+              const next = s.rainOnHomepage === "true" ? "false" : "true";
+              const ns = { ...s, rainOnHomepage: next };
+              setS(ns);
+              applySettingsNow(ns);
+            }}
+          />
+        </div>
+        <div style={{ borderBottom: `1px solid ${C.border}` }}>
+          <ToggleRow
+            C={C}
             label="Search edge glow"
             desc="Trace animation around the homepage search bar every few seconds"
             checked={s.searchEdgeGlow !== "false"}

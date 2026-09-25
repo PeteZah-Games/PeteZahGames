@@ -5,12 +5,14 @@ import { MentionsText } from "@/lib/mentions";
 
 const SEEN_KEY = "pz-announcement-seen-ids";
 const LEGACY_SEEN_KEY = "pz-announcement-seen";
+const IMPORTANT_WAIT_MS = 5000;
 
 interface Announcement {
   id: string;
   title: string;
   content: string;
   created_at?: number;
+  important?: number | boolean;
 }
 
 function readSeen(): Set<string> {
@@ -38,6 +40,11 @@ function writeSeen(ids: Set<string>) {
   } catch {}
 }
 
+function isImportant(a: Announcement | null): boolean {
+  if (!a) return false;
+  return a.important === 1 || a.important === true;
+}
+
 export default function GlobalAnnouncement({
   onNavigate,
 }: {
@@ -45,6 +52,8 @@ export default function GlobalAnnouncement({
 }) {
   const [queue, setQueue] = useState<Announcement[]>([]);
   const item = queue[0] || null;
+  const important = isImportant(item);
+  const [waitLeft, setWaitLeft] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,7 +67,9 @@ export default function GlobalAnnouncement({
             ? [d.announcement]
             : [];
         const seen = readSeen();
-        const pending = list.filter((a) => a?.id && !seen.has(a.id));
+        const pending = list
+          .filter((a) => a?.id && !seen.has(a.id))
+          .sort((a, b) => Number(isImportant(b)) - Number(isImportant(a)));
         if (pending.length) setQueue(pending);
       })
       .catch(() => {});
@@ -67,8 +78,25 @@ export default function GlobalAnnouncement({
     };
   }, []);
 
+  useEffect(() => {
+    if (!item || !important) {
+      setWaitLeft(0);
+      return;
+    }
+    setWaitLeft(Math.ceil(IMPORTANT_WAIT_MS / 1000));
+    const started = Date.now();
+    const tick = window.setInterval(() => {
+      const left = Math.max(0, IMPORTANT_WAIT_MS - (Date.now() - started));
+      setWaitLeft(Math.ceil(left / 1000));
+      if (left <= 0) window.clearInterval(tick);
+    }, 200);
+    return () => window.clearInterval(tick);
+  }, [item?.id, important]);
+
+  const canDismiss = !important || waitLeft <= 0;
+
   const dismiss = () => {
-    if (!item) return;
+    if (!item || !canDismiss) return;
     const seen = readSeen();
     seen.add(item.id);
     writeSeen(seen);
@@ -82,101 +110,104 @@ export default function GlobalAnnouncement({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 2000,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 20,
-            background: "hsla(220, 40%, 4%, 0.72)",
-            backdropFilter: "blur(8px)",
-          }}
+          className="fixed inset-0 z-[2000] flex items-center justify-center p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="pz-update-title"
         >
-          <motion.div
-            initial={{ opacity: 0, y: 16, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.98 }}
-            style={{
-              width: "100%",
-              maxWidth: 420,
-              borderRadius: 16,
-              background: "hsla(220, 30%, 9%, 0.98)",
-              border: "1px solid hsla(210, 40%, 80%, 0.12)",
-              boxShadow: "0 24px 80px hsla(0,0%,0%,0.5)",
-              overflow: "hidden",
+          <div
+            className="absolute inset-0"
+            style={{ background: "hsla(220, 40%, 4%, 0.72)", backdropFilter: "blur(10px)" }}
+            onClick={() => {
+              if (canDismiss) dismiss();
             }}
+          />
+          <motion.div
+            initial={{ opacity: 0, y: 14, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.99 }}
+            transition={{ duration: 0.28, ease: [0.25, 0.46, 0.45, 0.94] }}
+            className="relative z-10 w-full max-w-sm flex flex-col items-center text-center"
+            style={{ pointerEvents: "auto" }}
           >
             <div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "14px 16px",
-                borderBottom: "1px solid hsla(210, 40%, 80%, 0.1)",
+                background: "hsl(216 30% 10%)",
+                border: "1px solid hsl(213 40% 32%)",
               }}
             >
-              <div
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 8,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  background: "hsla(213, 70%, 55%, 0.2)",
-                  border: "1px solid hsla(213, 70%, 55%, 0.35)",
-                }}
-              >
-                <Megaphone size={13} style={{ color: "hsl(213 80% 70%)" }} />
-              </div>
-              <h2 style={{ flex: 1, margin: 0, fontSize: 14, fontWeight: 700, color: "hsla(0,0%,96%,0.95)" }}>
-                {item.title}
-              </h2>
-              <button
-                onClick={dismiss}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "hsla(0,0%,100%,0.45)",
-                  cursor: "pointer",
-                  padding: 4,
-                  display: "flex",
-                }}
-              >
-                <X size={14} />
-              </button>
+              <Megaphone size={22} style={{ color: "hsl(213 80% 78%)" }} />
             </div>
-            <div style={{ padding: "16px 18px 18px" }}>
-              <MentionsText
-                text={item.content}
-                onNavigate={onNavigate}
-                style={{
-                  margin: 0,
-                  fontSize: 13,
-                  lineHeight: 1.55,
-                  color: "hsla(0,0%,100%,0.72)",
-                  display: "block",
-                }}
-              />
+
+            <div className="flex items-center gap-2 mb-2">
+              <p
+                className="text-[10px] font-bold uppercase tracking-[0.16em]"
+                style={{ color: "hsl(213 75% 68%)" }}
+              >
+                Update
+              </p>
+              {important ? (
+                <span
+                  className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                  style={{
+                    color: "hsl(213 80% 78%)",
+                    background: "hsla(213, 55%, 40%, 0.22)",
+                    border: "1px solid hsla(213, 50%, 55%, 0.35)",
+                  }}
+                >
+                  Important
+                </span>
+              ) : null}
+            </div>
+
+            <h2
+              id="pz-update-title"
+              className="text-2xl font-extrabold tracking-tight mb-2"
+              style={{ color: "hsl(0 0% 100%)" }}
+            >
+              {item.title}
+            </h2>
+            <div
+              className="text-sm leading-relaxed mb-6 max-w-[34ch]"
+              style={{ color: "hsl(216 15% 72%)" }}
+            >
+              <MentionsText text={item.content} onNavigate={onNavigate} />
+            </div>
+
+            <div className="flex flex-col gap-2.5 w-full max-w-[280px]">
               <button
+                type="button"
+                disabled={!canDismiss}
                 onClick={dismiss}
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white transition-[filter,opacity]"
                 style={{
-                  marginTop: 16,
-                  width: "100%",
-                  padding: "10px 14px",
-                  borderRadius: 10,
-                  border: "1px solid hsla(213, 60%, 50%, 0.4)",
-                  background: "hsla(213, 70%, 48%, 0.25)",
-                  color: "hsl(213 90% 78%)",
-                  fontSize: 12,
-                  fontWeight: 650,
-                  cursor: "pointer",
+                  background: "hsl(213 55% 36%)",
+                  border: "1px solid hsl(213 50% 48%)",
+                  opacity: canDismiss ? 1 : 0.55,
+                  cursor: canDismiss ? "pointer" : "not-allowed",
                 }}
               >
-                Got it
+                {canDismiss ? "Got it" : `Please wait ${waitLeft}s`}
               </button>
+              {canDismiss ? (
+                <button
+                  type="button"
+                  onClick={dismiss}
+                  className="mt-0.5 py-2 text-[11px]"
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "hsl(216 15% 55%)",
+                    cursor: "pointer",
+                  }}
+                  aria-label="Close"
+                >
+                  <span className="inline-flex items-center gap-1">
+                    <X size={12} /> Dismiss
+                  </span>
+                </button>
+              ) : null}
             </div>
           </motion.div>
         </motion.div>

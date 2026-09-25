@@ -84,7 +84,12 @@ function RainReadabilityWash() {
   );
 }
 
-export default function VantaBackdrop() {
+export default function VantaBackdrop({
+  /** Skip WebGL rain on campus home (filter trigger); other pages keep full rain. */
+  suppressRain = false,
+}: {
+  suppressRain?: boolean;
+} = {}) {
   const [effect, setEffect] = useState(readEffect);
 
   useEffect(() => {
@@ -103,6 +108,14 @@ export default function VantaBackdrop() {
       window.clearInterval(id);
     };
   }, []);
+
+  if (suppressRain && effect === "rain") {
+    return (
+      <Suspense fallback={<StaticBackdrop />}>
+        <VantaBackground />
+      </Suspense>
+    );
+  }
 
   let node = <VantaBackground />;
   if (effect === "rain") node = <RainBackdrop />;
