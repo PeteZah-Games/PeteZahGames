@@ -130,6 +130,36 @@ export default function GlobalAnnouncement({
             className="relative z-10 w-full max-w-sm flex flex-col items-center text-center"
             style={{ pointerEvents: "auto" }}
           >
+            {canDismiss ? (
+              <button
+                type="button"
+                onClick={dismiss}
+                aria-label="Close"
+                className="group absolute -top-2 -right-2 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200"
+                style={{
+                  color: "hsla(0,0%,100%,0.4)",
+                  background: "hsla(216, 28%, 12%, 0.9)",
+                  border: "1px solid hsla(210, 40%, 80%, 0.12)",
+                }}
+                onMouseEnter={(e) => {
+                  const el = e.currentTarget;
+                  el.style.background = "hsla(0, 72%, 42%, 0.92)";
+                  el.style.borderColor = "hsla(0, 72%, 58%, 0.55)";
+                  el.style.color = "hsl(0 0% 100%)";
+                  el.style.transform = "scale(1.06)";
+                }}
+                onMouseLeave={(e) => {
+                  const el = e.currentTarget;
+                  el.style.background = "hsla(216, 28%, 12%, 0.9)";
+                  el.style.borderColor = "hsla(210, 40%, 80%, 0.12)";
+                  el.style.color = "hsla(0,0%,100%,0.4)";
+                  el.style.transform = "scale(1)";
+                }}
+              >
+                <X size={14} strokeWidth={2.25} />
+              </button>
+            ) : null}
+
             <div
               className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
               style={{
@@ -140,27 +170,12 @@ export default function GlobalAnnouncement({
               <Megaphone size={22} style={{ color: "hsl(213 80% 78%)" }} />
             </div>
 
-            <div className="flex items-center gap-2 mb-2">
-              <p
-                className="text-[10px] font-bold uppercase tracking-[0.16em]"
-                style={{ color: "hsl(213 75% 68%)" }}
-              >
-                Update
-              </p>
-              {important ? (
-                <span
-                  className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded"
-                  style={{
-                    color: "hsl(213 80% 78%)",
-                    background: "hsla(213, 55%, 40%, 0.22)",
-                    border: "1px solid hsla(213, 50%, 55%, 0.35)",
-                  }}
-                >
-                  Important
-                </span>
-              ) : null}
-            </div>
-
+            <p
+              className="text-[10px] font-bold uppercase tracking-[0.16em] mb-2"
+              style={{ color: "hsl(213 75% 68%)" }}
+            >
+              {important ? "Important update" : "Update"}
+            </p>
             <h2
               id="pz-update-title"
               className="text-2xl font-extrabold tracking-tight mb-2"
@@ -169,7 +184,7 @@ export default function GlobalAnnouncement({
               {item.title}
             </h2>
             <div
-              className="text-sm leading-relaxed mb-6 max-w-[34ch]"
+              className="text-sm leading-relaxed mb-6 max-w-[32ch]"
               style={{ color: "hsl(216 15% 72%)" }}
             >
               <MentionsText text={item.content} onNavigate={onNavigate} />
@@ -187,6 +202,12 @@ export default function GlobalAnnouncement({
                   opacity: canDismiss ? 1 : 0.55,
                   cursor: canDismiss ? "pointer" : "not-allowed",
                 }}
+                onMouseEnter={(e) => {
+                  if (canDismiss) e.currentTarget.style.filter = "brightness(1.08)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.filter = "none";
+                }}
               >
                 {canDismiss ? "Got it" : `Please wait ${waitLeft}s`}
               </button>
@@ -194,18 +215,15 @@ export default function GlobalAnnouncement({
                 <button
                   type="button"
                   onClick={dismiss}
-                  className="mt-0.5 py-2 text-[11px]"
+                  className="mt-1 py-2 text-[11px]"
                   style={{
                     background: "none",
                     border: "none",
                     color: "hsl(216 15% 55%)",
                     cursor: "pointer",
                   }}
-                  aria-label="Close"
                 >
-                  <span className="inline-flex items-center gap-1">
-                    <X size={12} /> Dismiss
-                  </span>
+                  Dismiss
                 </button>
               ) : null}
             </div>
