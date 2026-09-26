@@ -24,7 +24,6 @@ const SYNC_KEYS = [
   'lowPowerBg',
   'rainBackdrop',
   'rainScene',
-  'rainOnHomepage',
   'bgEffect',
   'searchEngine',
   'browserIdentity',

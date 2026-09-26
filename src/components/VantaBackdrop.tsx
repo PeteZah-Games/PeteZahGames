@@ -3,7 +3,7 @@ import { themeById } from "@/lib/siteThemes";
 import { normalizeBgEffect, syncBgEffectAttr, type BgEffectId } from "@/lib/bgEffects";
 
 const VantaBackground = lazy(() => import("./VantaBackground"));
-const RainBackdrop = lazy(() => import("./RainBackdrop"));
+const SafeRainBackdrop = lazy(() => import("./SafeRainBackdrop"));
 const SakuraBackdrop = lazy(() => import("./effects/SakuraBackdrop"));
 const LightningBackdrop = lazy(() => import("./effects/LightningBackdrop"));
 const StarfieldBackdrop = lazy(() => import("./effects/StarfieldBackdrop"));
@@ -84,12 +84,8 @@ function RainReadabilityWash() {
   );
 }
 
-export default function VantaBackdrop({
-  /** Skip WebGL rain on campus home (filter trigger); other pages keep full rain. */
-  suppressRain = false,
-}: {
-  suppressRain?: boolean;
-} = {}) {
+/** Site-wide backdrop. Rain uses Canvas 2D glass (no WebGL / no /fx/rain iframe). */
+export default function VantaBackdrop() {
   const [effect, setEffect] = useState(readEffect);
 
   useEffect(() => {
@@ -109,16 +105,8 @@ export default function VantaBackdrop({
     };
   }, []);
 
-  if (suppressRain && effect === "rain") {
-    return (
-      <Suspense fallback={<StaticBackdrop />}>
-        <VantaBackground />
-      </Suspense>
-    );
-  }
-
   let node = <VantaBackground />;
-  if (effect === "rain") node = <RainBackdrop />;
+  if (effect === "rain") node = <SafeRainBackdrop />;
   else if (effect === "sakura") node = <SakuraBackdrop />;
   else if (effect === "lightning") node = <LightningBackdrop />;
   else if (effect === "stars") node = <StarfieldBackdrop />;

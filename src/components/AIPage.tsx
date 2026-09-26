@@ -1932,10 +1932,10 @@ export default function AIPage({
                     />
                   </p>
                 </div>
-                <div className="w-full" style={{ marginBottom: 8 }}>
+                <div className="w-full">{composer}</div>
+                <div className="w-full" style={{ marginTop: 8 }}>
                   <AdNativeBarAlt />
                 </div>
-                <div className="w-full">{composer}</div>
               </motion.div>
             </div>
             <style>{`@keyframes pz-caret { 0%,100%{opacity:1} 50%{opacity:0} }`}</style>
@@ -2034,10 +2034,10 @@ export default function AIPage({
             </div>
 
             <div className="flex-shrink-0 relative z-10" style={{ padding: "0 max(8%, 20px) 18px" }}>
-              <div style={{ paddingBottom: 8 }}>
+              {composer}
+              <div style={{ paddingTop: 8 }}>
                 <AdNativeBarAlt />
               </div>
-              {composer}
             </div>
           </>
         )}

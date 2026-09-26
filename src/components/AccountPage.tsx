@@ -694,7 +694,7 @@ export default function AccountPage({ onNavigate }: { onNavigate: (url: string) 
   const loadLocalSettings = useCallback(() => {
     const keys = [
       "theme","siteTitle","siteLogo","panicKey","panicUrl","beforeUnload","disableRightClick","autocloak","focusCloaking","linkCloaking",
-      "backgroundColor","backgroundImage","bgNetwork","debugHud","searchEdgeGlow","horizontalTabs","trendingHomescreen",hrefs.gf(),"quickRelaunch",hrefs.rp(),"lowPowerBg","rainBackdrop","rainScene","rainOnHomepage","bgEffect",
+      "backgroundColor","backgroundImage","bgNetwork","debugHud","searchEdgeGlow","horizontalTabs","trendingHomescreen",hrefs.gf(),"quickRelaunch",hrefs.rp(),"lowPowerBg","rainBackdrop","rainScene","bgEffect",
       "searchEngine","browserIdentity","uaPreset","customUserAgent","proxServer","extensionsEnabled","stripTrackers","preferHttps",
     ];
     const loaded: Record<string,string> = {};
@@ -1642,7 +1642,7 @@ export default function AccountPage({ onNavigate }: { onNavigate: (url: string) 
         const loaded: Record<string, string> = {};
         [
           "theme","siteTitle","siteLogo","panicKey","panicUrl","beforeUnload","disableRightClick","autocloak","focusCloaking","linkCloaking",
-          "backgroundColor","backgroundImage","bgNetwork","debugHud","searchEdgeGlow","horizontalTabs","trendingHomescreen",hrefs.gf(),"quickRelaunch",hrefs.rp(),"lowPowerBg","rainBackdrop","rainScene","rainOnHomepage","bgEffect",
+          "backgroundColor","backgroundImage","bgNetwork","debugHud","searchEdgeGlow","horizontalTabs","trendingHomescreen",hrefs.gf(),"quickRelaunch",hrefs.rp(),"lowPowerBg","rainBackdrop","rainScene","bgEffect",
           "searchEngine","browserIdentity","uaPreset","customUserAgent","proxServer","extensionsEnabled","stripTrackers","preferHttps",
         ].forEach(k => {
           const v = localStorage.getItem(k);

@@ -60,23 +60,15 @@ export default function ArcBrowser() {
   const [horizontalTabs, setHorizontalTabs] = useState(
     () => localStorage.getItem("horizontalTabs") === "true"
   );
-  const [rainOnHomepage, setRainOnHomepage] = useState(
-    () => localStorage.getItem("rainOnHomepage") === "true"
-  );
   useEffect(() => {
     const sync = () => {
       setGameFocus(localStorage.getItem(hrefs.gf()) === "true");
       setHorizontalTabs(localStorage.getItem("horizontalTabs") === "true");
-      setRainOnHomepage(localStorage.getItem("rainOnHomepage") === "true");
     };
     window.addEventListener("petezah-settings-updated", sync);
     return () => window.removeEventListener("petezah-settings-updated", sync);
   }, []);
-  const onCampusHome = (() => {
-    const u = state.focusedTab?.url || state.activeTab?.url || "";
-    return !u || u === "petezah://newtab" || u === "about:blank" || u === "https://";
-  })();
-  const suppressRain = onCampusHome && !rainOnHomepage;  const dimChrome =
+  const dimChrome =
     gameFocus && !!state.focusedTab?.url?.startsWith(hrefs.gv());
   const contentRef = useRef<HTMLDivElement>(null);
   const [openToast, setOpenToast] = useState<string | null>(null);
@@ -359,7 +351,7 @@ export default function ArcBrowser() {
         position: "relative",
       }}
     >
-      <VantaBackdrop suppressRain={suppressRain} />
+      <VantaBackdrop />
       <DebugHud />
       <div
         style={{
