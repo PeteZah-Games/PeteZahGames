@@ -1,4 +1,4 @@
-import { getPx, PX } from "@/lib/px";
+import { getPx, PX, pxEncode } from "@/lib/px";
 import { hrefs } from "@/lib/uiMarks";
 
 export type OpenTabRequest = {
@@ -201,6 +201,25 @@ export function installParentOpenTrap() {
   } as typeof window.open;
 }
 
+export function openProxiedTab(url: string) {
+  const href = String(url || "").trim();
+  if (!href) return null;
+  let dest = href;
+  try {
+    const u = new URL(href, location.origin);
+    if (u.origin === location.origin) {
+      dest = u.href;
+    } else if (/^https?:$/i.test(u.protocol)) {
+      const encoded = pxEncode(u.href);
+      if (!encoded || encoded === "about:blank") return null;
+      dest = new URL(encoded, location.origin).href;
+    }
+  } catch {
+    return null;
+  }
+  return openNativeWindow(dest);
+}
+
 export function openNativeWindow(url: string, target = "_blank") {
   const href = String(url || "").trim();
   if (!href) return null;
@@ -259,17 +278,30 @@ export function installFrameOpenTrap(iframe: HTMLIFrameElement) {
       if (!raw || raw === "about:blank") {
         return origOpen ? origOpen(url, target, features) : null;
       }
-      if (handle(raw, true, features || null)) {
-        return {
-          closed: false,
-          close() {},
-          focus() {},
-          blur() {},
-          postMessage() {},
-          location: { href: raw },
-        };
+      const base = win.location?.href || undefined;
+      const unwrapped = unwrapProxyUrl(raw, base);
+      const popup = looksLikePopup(features);
+      if (popup || isAdUrl(unwrapped)) {
+        if (handle(raw, true, features || null)) {
+          return {
+            closed: false,
+            close() {},
+            focus() {},
+            blur() {},
+            postMessage() {},
+            location: { href: raw },
+          };
+        }
       }
-      return origOpen ? origOpen(url, target, features) : null;
+      openProxiedTab(/^https?:\/\//i.test(unwrapped) ? unwrapped : raw);
+      return {
+        closed: false,
+        close() {},
+        focus() {},
+        blur() {},
+        postMessage() {},
+        location: { href: raw },
+      };
     };
     win.open.__pzMarked = true;
 
@@ -283,12 +315,17 @@ export function installFrameOpenTrap(iframe: HTMLIFrameElement) {
         if (target !== "_blank" && target !== "_new") return;
         const href = a.href || a.getAttribute("href") || "";
         if (!href || href.startsWith("javascript:")) return;
-        const nested = !!(a.ownerDocument?.defaultView && a.ownerDocument.defaultView !== win);
-        const forceAd = nested || isAdUrl(unwrapProxyUrl(href, win.location?.href || undefined));
-        if (handle(href, forceAd)) {
-          e.preventDefault();
-          e.stopPropagation();
+        const unwrapped = unwrapProxyUrl(href, win.location?.href || undefined);
+        if (isAdUrl(unwrapped)) {
+          if (handle(href, true)) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+          return;
         }
+        e.preventDefault();
+        e.stopPropagation();
+        openProxiedTab(/^https?:\/\//i.test(unwrapped) ? unwrapped : href);
       },
       true
     );

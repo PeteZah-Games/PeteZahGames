@@ -250,7 +250,8 @@ export default function SafeRainBackdrop() {
 
     let fgPix: Uint8ClampedArray | null = null;
     let bgPix: Uint8ClampedArray | null = null;
-    let bgFull: HTMLCanvasElement | null = null;
+    let bgSnap: Uint8ClampedArray | null = null;
+    let paintData: ImageData | null = null;
     let out: HTMLCanvasElement | null = null;
     let outCtx: CanvasRenderingContext2D | null = null;
 
@@ -489,14 +490,15 @@ export default function SafeRainBackdrop() {
      * so most mist pixels skip after a cheap threshold check.
      */
     const composite = () => {
-      if (!liquid || !liquidCtx || !fgPix || !bgFull || !out || !outCtx) {
+      if (!liquid || !liquidCtx || !fgPix || !bgSnap || !out || !outCtx) {
         return;
       }
 
-      // Base: BG baked with the same scaledTexCoord framing as WebGL
-      outCtx.drawImage(bgFull, 0, 0, width, height);
-      const base = outCtx.getImageData(0, 0, width, height);
-      const od = base.data;
+      if (!paintData || paintData.width !== width || paintData.height !== height) {
+        paintData = new ImageData(width, height);
+      }
+      paintData.data.set(bgSnap);
+      const od = paintData.data;
       const water = liquidCtx.getImageData(0, 0, width, height);
       const wd = water.data;
 
@@ -565,7 +567,7 @@ export default function SafeRainBackdrop() {
         }
       }
 
-      outCtx.putImageData(base, 0, 0);
+      outCtx.putImageData(paintData, 0, 0);
       // Prefer crisp upscale — WebGL draws at native res; extra smoothing mushies the frost
       dctx.imageSmoothingEnabled = true;
       dctx.imageSmoothingQuality = "medium";
@@ -573,9 +575,8 @@ export default function SafeRainBackdrop() {
     };
 
     const bakeBackground = () => {
-      if (!bgPix || !outCtx) return;
-      bgFull = createCanvas(width, height);
-      const img = outCtx.createImageData(width, height);
+      if (!bgPix) return;
+      const img = new ImageData(width, height);
       const d = img.data;
       const invX = 1 / width;
       const invY = 1 / height;
@@ -591,8 +592,8 @@ export default function SafeRainBackdrop() {
           d[i + 3] = 255;
         }
       }
-      const bctx = bgFull.getContext("2d")!;
-      bctx.putImageData(img, 0, 0);
+      bgSnap = new Uint8ClampedArray(d);
+      paintData = img;
     };
 
     const resize = (bgImg: HTMLImageElement, fgImg: HTMLImageElement) => {
@@ -674,6 +675,11 @@ export default function SafeRainBackdrop() {
 
     const tick = () => {
       if (disposed) return;
+      if (document.hidden) {
+        raf = 0;
+        lastRender = 0;
+        return;
+      }
       const now = performance.now();
       if (!lastRender) lastRender = now;
       let timeScale = (now - lastRender) / ((1 / 60) * 1000);
@@ -684,6 +690,17 @@ export default function SafeRainBackdrop() {
       updateDrops(timeScale);
       composite();
       raf = requestAnimationFrame(tick);
+    };
+
+    const onVis = () => {
+      if (disposed) return;
+      if (document.hidden) {
+        if (raf) cancelAnimationFrame(raf);
+        raf = 0;
+        lastRender = 0;
+        return;
+      }
+      if (!raf) raf = requestAnimationFrame(tick);
     };
 
     let bgImg: HTMLImageElement | null = null;
@@ -713,10 +730,12 @@ export default function SafeRainBackdrop() {
     })();
 
     window.addEventListener("resize", onResize);
+    document.addEventListener("visibilitychange", onVis);
     return () => {
       disposed = true;
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", onResize);
+      document.removeEventListener("visibilitychange", onVis);
       display.remove();
     };
   }, [scene]);

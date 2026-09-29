@@ -17,7 +17,7 @@ import { armPx } from "@/lib/browserInit";
 import { applyMuxForUrl } from "@/lib/proxyTarget";
 import { useInterstitialUnlock, InterstitialOverlay } from "./InterstitialAdGate";
 import { mutePollMs } from "@/lib/liteDevice";
-import { openNativeWindow } from "@/lib/openTabBridge";
+import { openProxiedTab } from "@/lib/openTabBridge";
 
 interface AppViewerPageProps {
   url: string;
@@ -246,7 +246,7 @@ export default function AppViewerPage({ url, title, onBack }: AppViewerPageProps
   };
 
   const openExternal = () => {
-    openNativeWindow(url);
+    openProxiedTab(url);
   };
 
   return (

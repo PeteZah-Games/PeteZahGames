@@ -24,7 +24,7 @@ import {
   unwrapProxyUrl,
   type OpenTabRequest,
 } from "@/lib/openTabBridge";
-import { hrefs, marks } from "@/lib/uiMarks";
+import { hrefs, isGvHref, marks } from "@/lib/uiMarks";
 import { whenQuietEnds } from "@/lib/quietBoot";
 import { setRivetNavigateHandler } from "@/lib/rivet/host";
 
@@ -49,6 +49,14 @@ function isTypingTarget(target: EventTarget | null) {
   return !!target.closest("[contenteditable='true']");
 }
 
+function surfaceCoversBackdrop(url?: string, framed?: boolean) {
+  if (!url) return false;
+  if (isGvHref(url)) return true;
+  if (framed) return true;
+  if (/^https?:\/\//i.test(url)) return true;
+  return false;
+}
+
 export default function ArcBrowser() {
   const state = useBrowserState();
   const { user, mustSetup2fa, requires2fa } = useAuth();
@@ -70,6 +78,9 @@ export default function ArcBrowser() {
   }, []);
   const dimChrome =
     gameFocus && !!state.focusedTab?.url?.startsWith(hrefs.gv());
+  const holdBackdrop =
+    surfaceCoversBackdrop(state.activeTab?.url, !!state.activeTab?.frame) ||
+    surfaceCoversBackdrop(splitTab?.url, !!splitTab?.frame);
   const contentRef = useRef<HTMLDivElement>(null);
   const [openToast, setOpenToast] = useState<string | null>(null);
   const [inspectOpen, setInspectOpen] = useState(false);
@@ -351,7 +362,7 @@ export default function ArcBrowser() {
         position: "relative",
       }}
     >
-      <VantaBackdrop />
+      <VantaBackdrop suspended={holdBackdrop} />
       <DebugHud />
       <div
         style={{

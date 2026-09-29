@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useInterstitialUnlock, InterstitialOverlay } from "./InterstitialAdGate";
-import { openNativeWindow } from "@/lib/openTabBridge";
+import { openNativeWindow, openProxiedTab } from "@/lib/openTabBridge";
 import { getSiteOrigin } from "@/lib/siteOrigin";
 import { pxCreateFrame, pxEncode, pxReady } from "@/lib/px";
 import { armPx } from "@/lib/browserInit";
@@ -307,9 +307,13 @@ export default function GameViewerPage({
   const openExternal = () => {
     if (playUrl.includes("/storage/ag/originals/precision/index.html")) {
       openNativeWindow("/storage/ag/originals/Resent-Client-main/index.html");
-    } else {
-      openNativeWindow(playUrl);
+      return;
     }
+    if (useProxy) {
+      openProxiedTab(playUrl);
+      return;
+    }
+    openNativeWindow(playUrl);
   };
 
   return (

@@ -84,8 +84,7 @@ function RainReadabilityWash() {
   );
 }
 
-/** Site-wide backdrop. Rain uses Canvas 2D glass (no WebGL / no /fx/rain iframe). */
-export default function VantaBackdrop() {
+export default function VantaBackdrop({ suspended = false }: { suspended?: boolean }) {
   const [effect, setEffect] = useState(readEffect);
 
   useEffect(() => {
@@ -104,6 +103,8 @@ export default function VantaBackdrop() {
       window.clearInterval(id);
     };
   }, []);
+
+  if (suspended) return <StaticBackdrop />;
 
   let node = <VantaBackground />;
   if (effect === "rain") node = <SafeRainBackdrop />;
