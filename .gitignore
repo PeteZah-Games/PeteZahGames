@@ -221,6 +221,9 @@ ssh-keygen
 
 # 14. Your personal bot token (if you added x-bot-token or similar)
 *.token
+*ads.txt
+dist/ads.txt
+public/ads.txt
 
 # ==========================
 # FINAL SAFETY NET (NUKE EVERYTHING DANGEROUS)
