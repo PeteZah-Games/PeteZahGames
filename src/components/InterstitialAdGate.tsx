@@ -106,7 +106,7 @@ export function InterstitialOverlay({
       }}
     >
       <div style={{ flex: 1, minHeight: 0, position: "relative", overflow: "hidden" }}>
-        {phase === "ad" || phase === "checking" ? <LoaderSlots /> : null}
+        {phase === "ad" ? <LoaderSlots /> : null}
         <div
           style={{
             position: "absolute",

@@ -6,7 +6,7 @@ import { toIPv4 } from '../middleware/security.js';
 import { getAppPepper } from '../utils/secrets.js';
 
 const WINDOW_MS = 5 * 60 * 1000;
-const MAX_PER_WINDOW = 2;
+const MAX_PER_WINDOW = 1;
 const CONTEXTS = new Set(['game', 'app', 'vm']);
 const lastShown = new Map();
 const MAX_KEYS = 20000;

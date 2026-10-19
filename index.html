@@ -215,11 +215,15 @@ If you want to make the website better, the repository is open source, and my dm
         visibility: hidden !important;
         pointer-events: none !important;
       }
-      /* Gameviewer only: hide Google reward/vignette (above #root), not partner slots */
+      /* Gameviewer: suppress overlays above the page (sticky uses data-pz-forced-anchor) */
       html[data-pz-play-ads="1"] body > #goog_rewarded,
       html[data-pz-play-ads="1"] body > #google_vignette,
       html[data-pz-play-ads="1"] body > .google-auto-placed,
-      html[data-pz-play-ads="1"] body > ins.adsbygoogle {
+      html[data-pz-play-ads="1"] body > ins.adsbygoogle,
+      html[data-pz-play-ads="1"] body > iframe[src*="googlesyndication"],
+      html[data-pz-play-ads="1"] body > iframe[src*="doubleclick"],
+      html[data-pz-play-ads="1"] body > iframe[src*="pagead"],
+      html[data-pz-play-ads="1"] body > [data-pz-scrubbed="1"] {
         display: none !important;
         visibility: hidden !important;
         pointer-events: none !important;

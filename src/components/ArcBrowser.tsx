@@ -34,7 +34,7 @@ import {
   syncSurfaceAds,
   isHomeSurface,
   isPlaySurface,
-  isSoftEarn,
+  isRailSurface,
 } from "@/components/ads/Units";
 
 function getPresenceClientId() {
@@ -114,7 +114,7 @@ export default function ArcBrowser() {
     const fromHome = isHomeSurface(prevUrlRef.current);
     syncSurfaceAds(url, { fromHome, framed });
     setStickyOn(isPlaySurface(url, framed));
-    setRailsOn(isSoftEarn(url) && !isPlaySurface(url, framed));
+    setRailsOn(isRailSurface(url) && !isPlaySurface(url, framed));
     prevUrlRef.current = url;
   }, [state.focusedTab?.url, state.focusedTab?.frame]);
 

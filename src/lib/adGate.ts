@@ -1,7 +1,8 @@
 import { loaderAdsFilled } from "@/components/ads/Units";
 
 const WINDOW_MS = 5 * 60 * 1000;
-const MAX_PER_WINDOW = 2;
+/** At most one game/app/vm loader break every 5 minutes. */
+const MAX_PER_WINDOW = 1;
 const PLAYS_KEY = "pz-slot-ok";
 const DISPLAY_MS = 6000;
 const EMPTY_CAP_MS = 1800;

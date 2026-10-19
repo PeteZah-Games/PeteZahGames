@@ -128,14 +128,40 @@ function clearScrubbed() {
   } catch {}
 }
 
-/** Gameviewer only: hide reward/vignette shells so they don't stack over gameplay. */
+/** Gameviewer: kill Google + partner overlays (keep only our sticky if present). */
 function scrubPlayOverlays() {
   try {
     pauseGoogle(true);
     const nodes = document.querySelectorAll(
-      "body > #goog_rewarded, body > #google_vignette, body > .google-auto-placed, body > ins.adsbygoogle"
+      "body > #goog_rewarded, body > #google_vignette, body > .google-auto-placed, body > ins.adsbygoogle, body > iframe, body > div"
     );
-    for (const el of Array.from(nodes)) hideGoogleShell(el);
+    for (const el of Array.from(nodes)) {
+      const h = el as HTMLElement;
+      if (h.id === "root") continue;
+      if (h.dataset?.pzForcedAnchor === "1") continue;
+      if (h.dataset?.pzAdSlot === "1") continue;
+      if (h.dataset?.pzKeep === "1") continue;
+      const tag = h.tagName;
+      if (tag === "SCRIPT" || tag === "STYLE" || tag === "LINK" || tag === "META" || tag === "NOSCRIPT") continue;
+      const src = String((el as HTMLIFrameElement).src || "");
+      const id = String(h.id || "");
+      const cls = String(h.className || "");
+      const google =
+        /google|doubleclick|googlesyndication|pagead|adservice|aswift_|rewarded|vignette/i.test(
+          src + " " + id + " " + cls
+        );
+      let partnerCover = false;
+      try {
+        const st = window.getComputedStyle(h);
+        const z = Number.parseInt(st.zIndex || "0", 10) || 0;
+        const fixed = st.position === "fixed";
+        partnerCover =
+          fixed &&
+          z >= 40 &&
+          (h.offsetHeight >= 80 || (h.offsetWidth >= window.innerWidth * 0.5 && h.offsetHeight >= 40));
+      } catch {}
+      if (google || partnerCover) hideGoogleShell(el);
+    }
   } catch {}
 }
 
@@ -223,6 +249,15 @@ export function isSoftEarn(url: string) {
   return false;
 }
 
+/** Desktop side rails: AI, chat, and VM only. */
+export function isRailSurface(url: string) {
+  const u = String(url || "").toLowerCase();
+  if (u.startsWith("petezah://ai")) return true;
+  if (u.startsWith("petezah://chat")) return true;
+  if (u.startsWith("petezah://vm")) return true;
+  return false;
+}
+
 export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean; framed?: boolean }) {
   ensureNet();
   ensureGoogle();
@@ -237,8 +272,11 @@ export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean; framed?
   } catch {}
 
   if (hardPlay) {
+    // Gameviewer gameplay: no Google, scrub overlays. Sticky only (closable).
     startPlayScrub();
     pauseGoogle(true);
+    // Keep partner on so sticky can fill, but scrub strips everything else.
+    enablePartnerAds();
     return { sticky: true, google: false };
   }
 
@@ -404,60 +442,119 @@ export function StickyAnchor({ enabled = true }: { enabled?: boolean }) {
   );
 }
 
-const railShell: CSSProperties = {
-  position: "fixed",
-  top: "50%",
-  transform: "translateY(-50%)",
-  zIndex: 45,
-  width: 160,
-  minHeight: 600,
-  maxHeight: "min(600px, calc(100dvh - 120px))",
-  overflow: "hidden",
-  borderRadius: 10,
-  background: "hsla(216, 28%, 8%, 0.55)",
-  border: "1px solid hsla(210, 30%, 80%, 0.1)",
-  boxShadow: "0 12px 32px rgba(0,0,0,0.35)",
-  pointerEvents: "auto",
-};
+const RAILS_CLOSED_KEY = "pz-rails-closed";
 
-/** Desktop left/right rail placements (RevIQ left-rail-1 / right-rail-1). */
+function railClosed(): boolean {
+  try {
+    return sessionStorage.getItem(RAILS_CLOSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markRailsClosed() {
+  try {
+    sessionStorage.setItem(RAILS_CLOSED_KEY, "1");
+  } catch {}
+}
+
+function RailUnit({
+  side,
+  name,
+  onClose,
+}: {
+  side: "left" | "right";
+  name: string;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      data-pz-ad-slot="1"
+      data-pz-side-rail={side}
+      style={{
+        position: "fixed",
+        bottom: 56,
+        [side]: 12,
+        zIndex: 42,
+        width: 300,
+        maxWidth: "min(300px, calc(50vw - 24px))",
+        minHeight: 250,
+        pointerEvents: "auto",
+      }}
+    >
+      <div
+        style={{
+          position: "relative",
+          borderRadius: 10,
+          overflow: "visible",
+          background: "hsla(216, 28%, 8%, 0.72)",
+          border: "1px solid hsla(210, 30%, 80%, 0.12)",
+          boxShadow: "0 10px 28px rgba(0,0,0,0.35)",
+        }}
+      >
+        <button
+          type="button"
+          aria-label="Close ad"
+          onClick={onClose}
+          style={{
+            position: "absolute",
+            top: -8,
+            right: -8,
+            zIndex: 5,
+            width: 26,
+            height: 26,
+            borderRadius: 999,
+            border: "1px solid hsla(210,30%,80%,0.25)",
+            background: "hsla(220, 28%, 10%, 0.92)",
+            color: "#fff",
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 14,
+            fontWeight: 700,
+            lineHeight: 1,
+            boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
+          }}
+        >
+          ×
+        </button>
+        <Slot
+          name={name}
+          size="300x250"
+          style={{ width: "100%", minHeight: 250 }}
+          kv={{ surface: "rail", page: "utility" }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** Closable desktop rails — AI / chat / VM only. */
 export function SideRails({ enabled = true }: { enabled?: boolean }) {
+  const [closed, setClosed] = useState(() => railClosed());
+
   useEffect(() => {
     if (!enabled) return;
     ensureNet();
     enablePartnerAds();
   }, [enabled]);
 
-  if (!enabled) return null;
+  useEffect(() => {
+    if (!enabled) setClosed(railClosed());
+  }, [enabled]);
+
+  if (!enabled || closed) return null;
+
+  const close = () => {
+    markRailsClosed();
+    setClosed(true);
+  };
 
   return (
     <DesktopOnly>
-      <div
-        data-pz-ad-slot="1"
-        data-pz-side-rail="left"
-        style={{ ...railShell, left: 8 }}
-        aria-hidden
-      >
-        <Slot
-          name="left-rail-1"
-          size="160x600"
-          style={{ width: "100%", minHeight: 600 }}
-          kv={{ surface: "rail" }}
-        />
-      </div>
-      <div
-        data-pz-ad-slot="1"
-        data-pz-side-rail="right"
-        style={{ ...railShell, right: 8 }}
-        aria-hidden
-      >
-        <Slot
-          name="right-rail-1"
-          size="160x600"
-          style={{ width: "100%", minHeight: 600 }}
-          kv={{ surface: "rail" }}
-        />
-      </div>
+      <RailUnit side="left" name="left-rail-1" onClose={close} />
+      <RailUnit side="right" name="right-rail-1" onClose={close} />
     </DesktopOnly>
   );
 }
@@ -514,9 +611,8 @@ export function LoaderSlots() {
   useEffect(() => {
     ensureNet();
     enablePartnerAds();
-    // Loader break can also arm Google if due (rewarded / vignette).
-    if (googleDue()) armGoogleBreak();
-    else pauseGoogle(true);
+    // Loader break: partner display only — do not arm Google reward/vignette here.
+    pauseGoogle(true);
   }, []);
   return (
     <div
@@ -527,6 +623,7 @@ export function LoaderSlots() {
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
+        justifyContent: "center",
         padding: "18px 14px 20px",
         overflow: "auto",
         pointerEvents: "auto",
@@ -537,9 +634,6 @@ export function LoaderSlots() {
     >
       <div
         style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 6,
           width: "min(720px, 100%)",
           marginBottom: 14,
           padding: "16px 18px",
@@ -567,21 +661,8 @@ export function LoaderSlots() {
           Thanks for supporting PeteZah — your game starts right after this.
         </p>
       </div>
+      {/* One unit only — loader is rate-limited to 1× / 5 min */}
       <Slot name="billboard-1" style={{ width: "min(970px, 100%)", minHeight: 90 }} kv={{ surface: "loader" }} />
-      <div
-        style={{
-          display: "flex",
-          gap: 12,
-          flexWrap: "wrap",
-          justifyContent: "center",
-          width: "100%",
-          maxWidth: 720,
-          marginTop: 12,
-        }}
-      >
-        <Slot name="left-rail-1" style={{ minWidth: 150, minHeight: 220, flex: "1 1 150px", maxWidth: 300 }} kv={{ surface: "loader" }} />
-        <Slot name="right-rail-1" style={{ minWidth: 150, minHeight: 220, flex: "1 1 150px", maxWidth: 300 }} kv={{ surface: "loader" }} />
-      </div>
       <MobileOnly>
         <Slot name="mobile-unit-1" style={{ width: "min(360px, 100%)", minHeight: 100, marginTop: 12 }} kv={{ surface: "loader" }} />
       </MobileOnly>
