@@ -10,8 +10,12 @@ declare global {
 
 const HOST = ["js", "rev", "iq"].join(".");
 const SITE = "petezahgames.com";
-const GOOGLE_GAP_MS = 3 * 60 * 1000;
+const GOOGLE_GAP_MS = 5 * 60 * 1000;
 const GOOGLE_KEY = "pz-g-break";
+const GOOGLE_ARMING_KEY = "pz-g-arming";
+let playScrubTimer: number | null = null;
+let playScrubObs: MutationObserver | null = null;
+let googleArmTimer: number | null = null;
 
 function ensureNet() {
   if (typeof document === "undefined") return;
@@ -36,9 +40,16 @@ function withApi(fn: (api: any) => void) {
   }
 }
 
+function pauseGoogle(on: boolean) {
+  try {
+    window.adsbygoogle = window.adsbygoogle || [];
+    window.adsbygoogle.pauseAdRequests = on ? 1 : 0;
+  } catch {}
+}
+
 function lastGoogleAt() {
   try {
-    return Number(sessionStorage.getItem(GOOGLE_KEY) || 0) || 0;
+    return Number(localStorage.getItem(GOOGLE_KEY) || 0) || 0;
   } catch {
     return 0;
   }
@@ -46,27 +57,135 @@ function lastGoogleAt() {
 
 function markGoogle() {
   try {
-    sessionStorage.setItem(GOOGLE_KEY, String(Date.now()));
+    localStorage.setItem(GOOGLE_KEY, String(Date.now()));
   } catch {}
 }
 
-function ensureGoogle() {
-  if (typeof document === "undefined") return;
-  if (document.querySelector(`script[data-pz-gnet="1"]`)) return;
-  const s = document.createElement("script");
-  s.async = true;
-  s.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6640595376330309";
-  s.crossOrigin = "anonymous";
-  s.dataset.pzGnet = "1";
-  document.head.appendChild(s);
+function googleDue() {
   try {
-    window.adsbygoogle = window.adsbygoogle || [];
-    window.adsbygoogle.pauseAdRequests = 0;
+    if (sessionStorage.getItem(GOOGLE_ARMING_KEY) === "1") return false;
   } catch {}
+  return Date.now() - lastGoogleAt() >= GOOGLE_GAP_MS;
+}
+
+function loadGooglePaused() {
+  if (typeof document === "undefined") return;
+  if (!document.querySelector(`script[data-pz-gnet="1"]`)) {
+    const s = document.createElement("script");
+    s.async = true;
+    s.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6640595376330309";
+    s.crossOrigin = "anonymous";
+    s.dataset.pzGnet = "1";
+    document.head.appendChild(s);
+  }
+  pauseGoogle(true);
+}
+
+function armGoogleBreak() {
+  if (!googleDue()) {
+    pauseGoogle(true);
+    return false;
+  }
+  try {
+    sessionStorage.setItem(GOOGLE_ARMING_KEY, "1");
+  } catch {}
+  loadGooglePaused();
+  markGoogle();
+  pauseGoogle(false);
+  if (googleArmTimer) window.clearTimeout(googleArmTimer);
+  googleArmTimer = window.setTimeout(() => {
+    pauseGoogle(true);
+    try {
+      sessionStorage.removeItem(GOOGLE_ARMING_KEY);
+    } catch {}
+    googleArmTimer = null;
+  }, 6000);
+  return true;
+}
+
+function isGoogleOverlay(el: Element) {
+  if ((el as HTMLElement).closest?.("[data-pz-forced-anchor='1']")) return false;
+  if ((el as HTMLElement).closest?.("#root")) return false;
+  const tag = el.tagName;
+  if (tag === "IFRAME") {
+    const src = String((el as HTMLIFrameElement).src || "");
+    return /google|doubleclick|googlesyndication|pagead|adservice|adnxs|safeframe/i.test(src);
+  }
+  const id = String((el as HTMLElement).id || "");
+  const cls = String((el as HTMLElement).className || "");
+  return /google_ads|GoogleActiveView|adsbygoogle|vignette|rewarded/i.test(id + " " + cls);
+}
+
+function hideOverlay(el: Element) {
+  const h = el as HTMLElement;
+  h.style.setProperty("display", "none", "important");
+  h.style.setProperty("visibility", "hidden", "important");
+  h.style.setProperty("pointer-events", "none", "important");
+  h.style.setProperty("opacity", "0", "important");
+  h.setAttribute("data-pz-scrubbed", "1");
+}
+
+function scrubPlayOverlays() {
+  try {
+    pauseGoogle(true);
+    const nodes = document.querySelectorAll(
+      "iframe, ins.adsbygoogle, div[id*='google'], div[class*='GoogleActiveView'], #google_vignette, .google-auto-placed"
+    );
+    for (const el of Array.from(nodes)) {
+      if (!isGoogleOverlay(el)) continue;
+      hideOverlay(el);
+    }
+    for (const el of Array.from(document.body.children)) {
+      if (el.id === "root") continue;
+      const h = el as HTMLElement;
+      if (h.dataset?.pzForcedAnchor === "1") continue;
+      if (h.dataset?.pzAdSlot === "1") continue;
+      if (h.dataset?.pzKeep === "1") continue;
+      const tag = h.tagName;
+      if (tag === "SCRIPT" || tag === "STYLE" || tag === "LINK" || tag === "META") continue;
+      const id = String(h.id || "");
+      const cls = String(h.className || "");
+      const looksGoogle = /google|vignette|adsbygoogle|aswift_|rewarded/i.test(id + " " + cls);
+      let looksPartner = false;
+      try {
+        const st = window.getComputedStyle(h);
+        const z = Number.parseInt(st.zIndex || "0", 10) || 0;
+        const fixed = st.position === "fixed" || st.position === "sticky";
+        const covers =
+          (h.offsetWidth >= window.innerWidth * 0.7 && h.offsetHeight >= window.innerHeight * 0.35) ||
+          (fixed && z >= 1000 && h.offsetHeight >= 120);
+        looksPartner = covers && !h.querySelector?.("[data-pz-forced-anchor='1']");
+      } catch {}
+      if (looksGoogle || looksPartner) hideOverlay(h);
+    }
+  } catch {}
+}
+
+function startPlayScrub() {
+  scrubPlayOverlays();
+  if (playScrubTimer == null) {
+    playScrubTimer = window.setInterval(scrubPlayOverlays, 700);
+  }
+  if (!playScrubObs && typeof MutationObserver !== "undefined") {
+    playScrubObs = new MutationObserver(() => scrubPlayOverlays());
+    playScrubObs.observe(document.documentElement, { childList: true, subtree: true });
+  }
+}
+
+function stopPlayScrub() {
+  if (playScrubTimer != null) {
+    window.clearInterval(playScrubTimer);
+    playScrubTimer = null;
+  }
+  if (playScrubObs) {
+    playScrubObs.disconnect();
+    playScrubObs = null;
+  }
 }
 
 export function bootSlotNet() {
   ensureNet();
+  loadGooglePaused();
   withApi((api) => {
     try {
       api.setAdsEnabled?.(true);
@@ -87,6 +206,7 @@ export function isQuietSurface(url: string) {
   if (u.startsWith("petezah://extensions")) return true;
   if (u.startsWith("petezah://tools")) return true;
   if (u.startsWith("petezah://trending")) return true;
+  if (isGHref(String(url || ""))) return true;
   return false;
 }
 
@@ -109,35 +229,52 @@ export function isHomeSurface(url: string) {
   return !u || u === "about:blank" || u.startsWith("petezah://newtab") || u.startsWith("petezah://trending");
 }
 
-export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean }) {
+function isSoftEarn(url: string) {
+  const u = String(url || "");
+  if (u.startsWith("petezah://apps")) return true;
+  if (u.startsWith(hrefs.mu()) || u.startsWith(hrefs.mo())) return true;
+  if (u.startsWith("petezah://changelog")) return true;
+  return false;
+}
+
+export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean; framed?: boolean }) {
   ensureNet();
+  const home = isHomeSurface(url);
+  const quiet = isQuietSurface(url);
+  const play = isPlaySurface(url, !!opts?.framed);
+  try {
+    document.documentElement.dataset.pzHomeAds = home || isGHref(url) ? "1" : "0";
+    document.documentElement.dataset.pzPlayAds = play ? "1" : "0";
+  } catch {}
+
+  if (play) {
+    stopPlayScrub();
+    startPlayScrub();
+    withApi((api) => {
+      try {
+        api.setAdsEnabled?.(true);
+      } catch {}
+    });
+    pauseGoogle(true);
+    loadGooglePaused();
+    return { sticky: true, google: false };
+  }
+
+  stopPlayScrub();
+  pauseGoogle(true);
+
   withApi((api) => {
     try {
-      api.setAdsEnabled?.(true);
+      api.setAdsEnabled?.(!quiet);
     } catch {}
   });
 
-  const home = isHomeSurface(url);
-  const quiet = isQuietSurface(url);
-  const earn = isEarnSurface(url);
-  try {
-    document.documentElement.dataset.pzHomeAds = home ? "1" : "0";
-  } catch {}
-
-  const fromHome = !!opts?.fromHome;
-  const gamesHit = isGHref(url) || isGvHref(url);
-  const due = Date.now() - lastGoogleAt() >= GOOGLE_GAP_MS;
-  if (earn && (fromHome || gamesHit) && due) {
-    ensureGoogle();
-    markGoogle();
-  } else if (earn && document.querySelector(`script[data-pz-gnet="1"]`)) {
-    try {
-      window.adsbygoogle = window.adsbygoogle || [];
-      window.adsbygoogle.pauseAdRequests = 0;
-    } catch {}
+  if (!quiet && isSoftEarn(url) && opts?.fromHome && googleDue()) {
+    armGoogleBreak();
+    return { sticky: false, google: true };
   }
 
-  return { sticky: false, google: true };
+  return { sticky: false, google: false };
 }
 
 export function Slot({
@@ -343,7 +480,7 @@ export function AdNativeBarAlt() {
 export function LoaderSlots() {
   useEffect(() => {
     ensureNet();
-    ensureGoogle();
+    pauseGoogle(true);
     withApi((api) => {
       try {
         api.setAdsEnabled?.(true);

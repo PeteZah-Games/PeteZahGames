@@ -109,7 +109,7 @@ export default function ArcBrowser() {
     const url = state.focusedTab?.url || "";
     const framed = !!state.focusedTab?.frame;
     const fromHome = isHomeSurface(prevUrlRef.current);
-    syncSurfaceAds(url, { fromHome });
+    syncSurfaceAds(url, { fromHome, framed });
     setStickyOn(isPlaySurface(url, framed));
     prevUrlRef.current = url;
   }, [state.focusedTab?.url, state.focusedTab?.frame]);

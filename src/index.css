@@ -422,14 +422,14 @@ html, body {
   display: none;
 }
 
-body > ins.adsbygoogle,
-body > .google-auto-placed,
-body > #google_vignette,
-body > div[id^="aswift_"],
-body > iframe[id^="google_ads_iframe"],
-body > iframe[name^="google_ads_iframe"],
-body > div[class^="ns-"],
-body > div[id^="google_ads_frame"] {
+html:not([data-pz-play-ads="1"]) body > ins.adsbygoogle,
+html:not([data-pz-play-ads="1"]) body > .google-auto-placed,
+html:not([data-pz-play-ads="1"]) body > #google_vignette,
+html:not([data-pz-play-ads="1"]) body > div[id^="aswift_"],
+html:not([data-pz-play-ads="1"]) body > iframe[id^="google_ads_iframe"],
+html:not([data-pz-play-ads="1"]) body > iframe[name^="google_ads_iframe"],
+html:not([data-pz-play-ads="1"]) body > div[class^="ns-"],
+html:not([data-pz-play-ads="1"]) body > div[id^="google_ads_frame"] {
   position: fixed !important;
   left: 0 !important;
   right: 0 !important;
@@ -444,8 +444,19 @@ body > div[id^="google_ads_frame"] {
   pointer-events: auto;
 }
 
-body > #google_vignette {
-  max-height: 100dvh !important;
+html[data-pz-play-ads="1"] body > ins.adsbygoogle,
+html[data-pz-play-ads="1"] body > .google-auto-placed,
+html[data-pz-play-ads="1"] body > #google_vignette,
+html[data-pz-play-ads="1"] body > div[id^="aswift_"],
+html[data-pz-play-ads="1"] body > iframe[id^="google_ads_iframe"],
+html[data-pz-play-ads="1"] body > iframe[name^="google_ads_iframe"],
+html[data-pz-play-ads="1"] body > div[class^="ns-"],
+html[data-pz-play-ads="1"] body > div[id^="google_ads_frame"] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  max-height: 0 !important;
+  opacity: 0 !important;
 }
 
 .pz-google-ad-label {

@@ -215,6 +215,21 @@ If you want to make the website better, the repository is open source, and my dm
         visibility: hidden !important;
         pointer-events: none !important;
       }
+      html[data-pz-play-ads="1"] iframe[src*="googlesyndication"],
+      html[data-pz-play-ads="1"] iframe[src*="doubleclick"],
+      html[data-pz-play-ads="1"] iframe[src*="pagead"],
+      html[data-pz-play-ads="1"] iframe[src*="adservice"],
+      html[data-pz-play-ads="1"] ins.adsbygoogle,
+      html[data-pz-play-ads="1"] [id*="google_ads"],
+      html[data-pz-play-ads="1"] [class*="GoogleActiveView"],
+      html[data-pz-play-ads="1"] [data-pz-scrubbed="1"] {
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+        max-height: 0 !important;
+        max-width: 0 !important;
+        overflow: hidden !important;
+      }
     </style>
   </head>
   <body>
