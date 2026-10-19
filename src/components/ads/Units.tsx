@@ -10,7 +10,7 @@ declare global {
 
 const HOST = ["js", "rev", "iq"].join(".");
 const SITE = "petezahgames.com";
-const GOOGLE_GAP_MS = 4 * 60 * 1000;
+const GOOGLE_GAP_MS = 3 * 60 * 1000;
 const GOOGLE_KEY = "pz-g-break";
 
 function ensureNet() {
@@ -36,13 +36,6 @@ function withApi(fn: (api: any) => void) {
   }
 }
 
-function pauseGoogle(on: boolean) {
-  try {
-    window.adsbygoogle = window.adsbygoogle || [];
-    window.adsbygoogle.pauseAdRequests = on ? 1 : 0;
-  } catch {}
-}
-
 function lastGoogleAt() {
   try {
     return Number(sessionStorage.getItem(GOOGLE_KEY) || 0) || 0;
@@ -57,12 +50,26 @@ function markGoogle() {
   } catch {}
 }
 
+function ensureGoogle() {
+  if (typeof document === "undefined") return;
+  if (document.querySelector(`script[data-pz-gnet="1"]`)) return;
+  const s = document.createElement("script");
+  s.async = true;
+  s.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6640595376330309";
+  s.crossOrigin = "anonymous";
+  s.dataset.pzGnet = "1";
+  document.head.appendChild(s);
+  try {
+    window.adsbygoogle = window.adsbygoogle || [];
+    window.adsbygoogle.pauseAdRequests = 0;
+  } catch {}
+}
+
 export function bootSlotNet() {
   ensureNet();
-  pauseGoogle(true);
   withApi((api) => {
     try {
-      api.setAdsEnabled?.(false);
+      api.setAdsEnabled?.(true);
     } catch {}
   });
 }
@@ -100,30 +107,33 @@ export function isHomeSurface(url: string) {
 
 export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean }) {
   ensureNet();
-  const quiet = isQuietSurface(url) || !isEarnSurface(url);
-  const earn = isEarnSurface(url);
-  try {
-    document.documentElement.dataset.pzQuietAds = quiet || !earn ? "1" : "0";
-  } catch {}
   withApi((api) => {
     try {
-      api.setAdsEnabled?.(!quiet && earn);
+      api.setAdsEnabled?.(true);
     } catch {}
   });
-  if (quiet || !earn) {
-    pauseGoogle(true);
-    return { sticky: false, google: false };
-  }
+
+  const home = isHomeSurface(url);
+  const quiet = isQuietSurface(url);
+  const earn = isEarnSurface(url);
+  try {
+    document.documentElement.dataset.pzHomeAds = home ? "1" : "0";
+  } catch {}
+
   const fromHome = !!opts?.fromHome;
-  const due = fromHome || Date.now() - lastGoogleAt() >= GOOGLE_GAP_MS;
-  if (due && (fromHome || isGHref(url) || isGvHref(url))) {
-    pauseGoogle(false);
+  const gamesHit = isGHref(url) || isGvHref(url);
+  const due = Date.now() - lastGoogleAt() >= GOOGLE_GAP_MS;
+  if (earn && (fromHome || gamesHit) && due) {
+    ensureGoogle();
     markGoogle();
-    window.setTimeout(() => pauseGoogle(true), 4500);
-    return { sticky: true, google: true };
+  } else if (earn && document.querySelector(`script[data-pz-gnet="1"]`)) {
+    try {
+      window.adsbygoogle = window.adsbygoogle || [];
+      window.adsbygoogle.pauseAdRequests = 0;
+    } catch {}
   }
-  pauseGoogle(true);
-  return { sticky: true, google: false };
+
+  return { sticky: earn && !quiet, google: true };
 }
 
 export function Slot({
@@ -196,14 +206,15 @@ export function StickyAnchor({ enabled = true }: { enabled?: boolean }) {
     ensureNet();
     withApi((api) => {
       try {
-        api.setAdsEnabled?.(!!enabled);
+        api.setAdsEnabled?.(true);
       } catch {}
     });
-  }, [enabled]);
+  }, []);
   if (!enabled) return null;
   return (
     <div
       aria-hidden
+      data-pz-forced-anchor="1"
       style={{
         position: "fixed",
         left: 0,
@@ -285,6 +296,7 @@ export function AdNativeBarAlt() {
 export function LoaderSlots() {
   useEffect(() => {
     ensureNet();
+    ensureGoogle();
     withApi((api) => {
       try {
         api.setAdsEnabled?.(true);
@@ -306,6 +318,7 @@ export function LoaderSlots() {
         background: "radial-gradient(ellipse at 50% 0%, hsla(213,40%,18%,0.55), #070b12 55%)",
       }}
       data-pz-ad-slot="1"
+      data-pz-loader-ads="1"
     >
       <div
         style={{
@@ -359,4 +372,24 @@ export function LoaderSlots() {
       </MobileOnly>
     </div>
   );
+}
+
+export function loaderAdsFilled() {
+  try {
+    const root = document.querySelector("[data-pz-loader-ads='1']");
+    if (!root) return false;
+    const frames = root.querySelectorAll("iframe, img, video, ins iframe");
+    for (const el of Array.from(frames)) {
+      const r = (el as HTMLElement).getBoundingClientRect?.();
+      if (r && r.width > 40 && r.height > 40) return true;
+    }
+    const nodes = root.querySelectorAll("[data-ad]");
+    for (const node of Array.from(nodes)) {
+      if ((node as HTMLElement).childElementCount > 0) {
+        const r = (node as HTMLElement).getBoundingClientRect?.();
+        if (r && r.width > 40 && r.height > 40) return true;
+      }
+    }
+  } catch {}
+  return false;
 }

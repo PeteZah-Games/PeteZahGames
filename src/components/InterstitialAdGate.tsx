@@ -32,11 +32,11 @@ export function useInterstitialUnlock(context: Context, enabled = true) {
 
         if (gate.show) {
           setPhase("ad");
-          setHadAd(true);
           await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
           if (cancelled) return;
-          await playDisplayBreak(context);
+          const result = await playDisplayBreak(context);
           if (cancelled) return;
+          setHadAd(result === "done");
         }
       } catch {
         setHadAd(false);

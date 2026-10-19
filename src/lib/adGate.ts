@@ -1,7 +1,11 @@
+import { loaderAdsFilled } from "@/components/ads/Units";
+
 const WINDOW_MS = 5 * 60 * 1000;
 const MAX_PER_WINDOW = 2;
 const PLAYS_KEY = "pz-slot-ok";
 const DISPLAY_MS = 6000;
+const EMPTY_CAP_MS = 1800;
+const HARD_CAP_MS = 7000;
 
 let audioArmed = false;
 
@@ -55,7 +59,7 @@ export async function requestAdGate(
   if (!clientCanPlay()) return { show: false, reason: "cooldown" };
   try {
     const ac = new AbortController();
-    const t = window.setTimeout(() => ac.abort(), 4000);
+    const t = window.setTimeout(() => ac.abort(), 2500);
     const r = await fetch("/api/ads/gate", {
       method: "POST",
       credentials: "include",
@@ -74,11 +78,42 @@ export async function requestAdGate(
 
 export function playDisplayBreak(context: "game" | "app" | "vm" = "game"): Promise<"done" | "skip"> {
   return new Promise((resolve) => {
-    const ms = audioArmed ? DISPLAY_MS : Math.max(5200, DISPLAY_MS - 800);
-    window.setTimeout(() => {
-      markShown(context);
-      resolve("done");
-    }, ms);
+    const started = Date.now();
+    const fullMs = audioArmed ? DISPLAY_MS : Math.max(4800, DISPLAY_MS - 800);
+    let settled = false;
+    let sawFill = false;
+    let emptyTicks = 0;
+
+    const finish = (kind: "done" | "skip") => {
+      if (settled) return;
+      settled = true;
+      window.clearInterval(poll);
+      window.clearTimeout(hard);
+      if (kind === "done") markShown(context);
+      resolve(kind);
+    };
+
+    const poll = window.setInterval(() => {
+      const filled = loaderAdsFilled();
+      if (filled) {
+        sawFill = true;
+        emptyTicks = 0;
+        return;
+      }
+      emptyTicks += 1;
+      const waited = Date.now() - started;
+      if (!sawFill && waited >= EMPTY_CAP_MS) {
+        finish("skip");
+        return;
+      }
+      if (sawFill && emptyTicks >= 6 && waited >= 2800) {
+        finish("done");
+      }
+    }, 250);
+
+    const hard = window.setTimeout(() => {
+      finish(sawFill ? "done" : "skip");
+    }, Math.min(fullMs, HARD_CAP_MS));
   });
 }
 
