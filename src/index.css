@@ -422,41 +422,21 @@ html, body {
   display: none;
 }
 
-html:not([data-pz-play-ads="1"]) body > ins.adsbygoogle,
-html:not([data-pz-play-ads="1"]) body > .google-auto-placed,
-html:not([data-pz-play-ads="1"]) body > #google_vignette,
-html:not([data-pz-play-ads="1"]) body > div[id^="aswift_"],
-html:not([data-pz-play-ads="1"]) body > iframe[id^="google_ads_iframe"],
-html:not([data-pz-play-ads="1"]) body > iframe[name^="google_ads_iframe"],
-html:not([data-pz-play-ads="1"]) body > div[class^="ns-"],
-html:not([data-pz-play-ads="1"]) body > div[id^="google_ads_frame"] {
-  position: fixed !important;
-  left: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  top: auto !important;
-  z-index: 5 !important;
-  max-width: 100vw !important;
-  max-height: 100px !important;
-  height: auto !important;
-  overflow: hidden !important;
-  transform: none !important;
-  pointer-events: auto;
+/* Google reward/vignette must sit above #root (z-index 10). Do not clamp height. */
+body > #goog_rewarded,
+body > #google_vignette,
+body > .google-auto-placed {
+  z-index: 10050 !important;
 }
 
-html[data-pz-play-ads="1"] body > ins.adsbygoogle,
-html[data-pz-play-ads="1"] body > .google-auto-placed,
+/* Gameviewer: suppress reward/vignette only — leave in-page partner [data-ad] alone */
+html[data-pz-play-ads="1"] body > #goog_rewarded,
 html[data-pz-play-ads="1"] body > #google_vignette,
-html[data-pz-play-ads="1"] body > div[id^="aswift_"],
-html[data-pz-play-ads="1"] body > iframe[id^="google_ads_iframe"],
-html[data-pz-play-ads="1"] body > iframe[name^="google_ads_iframe"],
-html[data-pz-play-ads="1"] body > div[class^="ns-"],
-html[data-pz-play-ads="1"] body > div[id^="google_ads_frame"] {
+html[data-pz-play-ads="1"] body > .google-auto-placed,
+html[data-pz-play-ads="1"] body > ins.adsbygoogle {
   display: none !important;
   visibility: hidden !important;
   pointer-events: none !important;
-  max-height: 0 !important;
-  opacity: 0 !important;
 }
 
 .pz-google-ad-label {

@@ -68,7 +68,7 @@ function googleDue() {
   return Date.now() - lastGoogleAt() >= GOOGLE_GAP_MS;
 }
 
-function loadGooglePaused() {
+function ensureGoogle() {
   if (typeof document === "undefined") return;
   if (!document.querySelector(`script[data-pz-gnet="1"]`)) {
     const s = document.createElement("script");
@@ -78,18 +78,15 @@ function loadGooglePaused() {
     s.dataset.pzGnet = "1";
     document.head.appendChild(s);
   }
-  pauseGoogle(true);
 }
 
+/** Allow Google (incl. #goog_rewarded / vignette) for a short window, then cool down 5 min. */
 function armGoogleBreak() {
-  if (!googleDue()) {
-    pauseGoogle(true);
-    return false;
-  }
+  if (!googleDue()) return false;
   try {
     sessionStorage.setItem(GOOGLE_ARMING_KEY, "1");
   } catch {}
-  loadGooglePaused();
+  ensureGoogle();
   markGoogle();
   pauseGoogle(false);
   if (googleArmTimer) window.clearTimeout(googleArmTimer);
@@ -99,29 +96,15 @@ function armGoogleBreak() {
       sessionStorage.removeItem(GOOGLE_ARMING_KEY);
     } catch {}
     googleArmTimer = null;
-  }, 6000);
+  }, 20_000);
   return true;
 }
 
-function isGoogleOverlay(el: Element) {
-  if ((el as HTMLElement).closest?.("[data-pz-forced-anchor='1']")) return false;
-  if ((el as HTMLElement).closest?.("#root")) return false;
-  const tag = el.tagName;
-  if (tag === "IFRAME") {
-    const src = String((el as HTMLIFrameElement).src || "");
-    return /google|doubleclick|googlesyndication|pagead|adservice|adnxs|safeframe/i.test(src);
-  }
-  const id = String((el as HTMLElement).id || "");
-  const cls = String((el as HTMLElement).className || "");
-  return /google_ads|GoogleActiveView|adsbygoogle|vignette|rewarded/i.test(id + " " + cls);
-}
-
-function hideOverlay(el: Element) {
+function hideGoogleShell(el: Element) {
   const h = el as HTMLElement;
   h.style.setProperty("display", "none", "important");
   h.style.setProperty("visibility", "hidden", "important");
   h.style.setProperty("pointer-events", "none", "important");
-  h.style.setProperty("opacity", "0", "important");
   h.setAttribute("data-pz-scrubbed", "1");
 }
 
@@ -132,44 +115,26 @@ function clearScrubbed() {
       h.style.removeProperty("display");
       h.style.removeProperty("visibility");
       h.style.removeProperty("pointer-events");
-      h.style.removeProperty("opacity");
-      h.style.removeProperty("max-height");
-      h.style.removeProperty("max-width");
       h.removeAttribute("data-pz-scrubbed");
     }
   } catch {}
 }
 
+/** Gameviewer only: hide reward/vignette shells so they don't stack over gameplay. */
 function scrubPlayOverlays() {
   try {
     pauseGoogle(true);
-    // Only Google reward/vignette shells as direct body children.
-    // Never touch [data-ad] fills inside #root.
     const nodes = document.querySelectorAll(
-      "body > iframe, body > ins.adsbygoogle, body > #google_vignette, body > .google-auto-placed, body > div[id*='google'], body > div[class*='GoogleActiveView'], body > div[id^='aswift_']"
+      "body > #goog_rewarded, body > #google_vignette, body > .google-auto-placed, body > ins.adsbygoogle"
     );
-    for (const el of Array.from(nodes)) {
-      const h = el as HTMLElement;
-      if (h.dataset?.pzForcedAnchor === "1") continue;
-      if (h.dataset?.pzAdSlot === "1") continue;
-      const src = String((el as HTMLIFrameElement).src || "");
-      const id = String(h.id || "");
-      const cls = String(h.className || "");
-      const google =
-        /google|doubleclick|googlesyndication|pagead|adservice|aswift_/i.test(src) ||
-        /google_ads|GoogleActiveView|adsbygoogle|vignette|rewarded|google_vignette|google-auto-placed|aswift_/i.test(
-          id + " " + cls
-        );
-      if (!google) continue;
-      hideOverlay(el);
-    }
+    for (const el of Array.from(nodes)) hideGoogleShell(el);
   } catch {}
 }
 
 function startPlayScrub() {
   scrubPlayOverlays();
   if (playScrubTimer == null) {
-    playScrubTimer = window.setInterval(scrubPlayOverlays, 900);
+    playScrubTimer = window.setInterval(scrubPlayOverlays, 1200);
   }
   if (!playScrubObs && typeof MutationObserver !== "undefined") {
     playScrubObs = new MutationObserver(() => scrubPlayOverlays());
@@ -199,8 +164,10 @@ function enablePartnerAds() {
 
 export function bootSlotNet() {
   ensureNet();
-  loadGooglePaused();
+  ensureGoogle();
   enablePartnerAds();
+  // Start paused until syncSurfaceAds decides; avoids homepage flood on boot.
+  pauseGoogle(true);
 }
 
 export function isQuietSurface(url: string) {
@@ -244,16 +211,17 @@ function isSoftEarn(url: string) {
   if (u.startsWith("petezah://apps")) return true;
   if (u.startsWith(hrefs.mu()) || u.startsWith(hrefs.mo())) return true;
   if (u.startsWith("petezah://changelog")) return true;
+  if (u.startsWith("petezah://vm")) return true;
   return false;
 }
 
 export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean; framed?: boolean }) {
   ensureNet();
+  ensureGoogle();
   enablePartnerAds();
   const home = isHomeSurface(url);
   const quiet = isQuietSurface(url);
   const play = isPlaySurface(url, !!opts?.framed);
-  // Hard lock only on gameviewer — proxy frames still get sticky, but keep page units alive.
   const hardPlay = isGvHref(String(url || ""));
   try {
     document.documentElement.dataset.pzHomeAds = home || isGHref(url) ? "1" : "0";
@@ -263,24 +231,30 @@ export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean; framed?
   if (hardPlay) {
     startPlayScrub();
     pauseGoogle(true);
-    loadGooglePaused();
     return { sticky: true, google: false };
   }
 
   stopPlayScrub();
 
   if (play) {
-    // Proxied tab: closable sticky OK, do not nuke partner/Google inventory for other surfaces.
-    pauseGoogle(true);
-    return { sticky: true, google: false };
+    // Proxied browsing: partner sticky OK; Google only when 5‑min window is due.
+    const armed = googleDue() ? armGoogleBreak() : false;
+    if (!armed) pauseGoogle(true);
+    return { sticky: true, google: armed };
   }
 
-  // Keep partner display slots filling on apps / movies / music / changelog / loader.
-  if (!quiet && isSoftEarn(url) && googleDue()) {
+  if (quiet || home) {
+    pauseGoogle(true);
+    return { sticky: false, google: false };
+  }
+
+  // Apps / movies / music / changelog / vm — partner slots fill; Google on 5‑min cadence.
+  if (isSoftEarn(url) && googleDue()) {
     armGoogleBreak();
     return { sticky: false, google: true };
   }
 
+  // Still allow partner display; Google stays paused until cooldown clears.
   pauseGoogle(true);
   return { sticky: false, google: false };
 }
@@ -300,6 +274,7 @@ export function Slot({
 }) {
   useEffect(() => {
     ensureNet();
+    enablePartnerAds();
   }, []);
   const extra: Record<string, string> = {};
   if (size) extra["data-ad-size"] = size;
@@ -485,7 +460,9 @@ export function LoaderSlots() {
   useEffect(() => {
     ensureNet();
     enablePartnerAds();
-    pauseGoogle(true);
+    // Loader break can also arm Google if due (rewarded / vignette).
+    if (googleDue()) armGoogleBreak();
+    else pauseGoogle(true);
   }, []);
   return (
     <div

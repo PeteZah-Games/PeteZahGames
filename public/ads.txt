@@ -1,4 +1,0 @@
-rev.iq, 8PYLxm5fq41M0Ke4Ii_XvoaIaBE, DIRECT
-rev.iq, 639HKDjVJfXkpBE1CRd1jrAbLE8, DIRECT
-ownerdomain=0123movie.cyou
-google.com, pub-6640595376330309, DIRECT, f08c47fec0942fa0
