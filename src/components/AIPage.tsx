@@ -29,7 +29,7 @@ import {
   LogIn,
   UserRound,
 } from "lucide-react";
-import { AdNativeBarAlt } from "@/components/ads/Adsterra";
+import { AdNativeBarAlt } from "@/components/ads/Units";
 import { setPendingAuth } from "@/lib/authPending";
 
 interface Message {

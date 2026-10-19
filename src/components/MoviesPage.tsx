@@ -8,7 +8,7 @@ import { CoverImg } from "@/lib/mediaCover";
 import { pxEncode, pxReady } from "@/lib/px";
 import { applyVpnRegion, isSignedIn } from "@/lib/vpn";
 import { setPendingAuth } from "@/lib/authPending";
-import { AdResponsiveBanner, AdNativeBarAlt } from "@/components/ads/Adsterra";
+import { AdResponsiveBanner, AdNativeBarAlt } from "@/components/ads/Units";
 import { sealPlayerPopups, setPopupLock } from "@/lib/sealPlayerPopups";
 import { sealPollMs } from "@/lib/liteDevice";
 

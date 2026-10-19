@@ -10,8 +10,6 @@ const MAX_PER_WINDOW = 2;
 const CONTEXTS = new Set(['game', 'app', 'vm']);
 const lastShown = new Map();
 const MAX_KEYS = 20000;
-const DEFAULT_VAST = 'https://s.magsrv.com/v1/vast.php?idz=6002278';
-
 export const adsGateLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 30,
@@ -79,21 +77,13 @@ function envOn(name, fallback = 'true') {
   return v !== '0' && v !== 'false' && v !== 'no' && v !== 'off';
 }
 
-function isVideoAdsEnabled() {
-  if (process.env.EXOCLICK_ENABLED != null) return envOn('EXOCLICK_ENABLED');
-  if (process.env.ADCASH_ENABLED != null) return envOn('ADCASH_ENABLED');
+function isAdsEnabled() {
+  if (process.env.ADS_ENABLED != null) return envOn('ADS_ENABLED');
   return true;
 }
 
-function vastUrl() {
-  const raw = typeof process.env.EXOCLICK_VAST_URL === 'string'
-    ? process.env.EXOCLICK_VAST_URL.trim()
-    : '';
-  return raw || DEFAULT_VAST;
-}
-
 export async function adsGateHandler(req, res) {
-  if (!isVideoAdsEnabled()) {
+  if (!isAdsEnabled()) {
     return res.json({ show: false, reason: 'disabled' });
   }
 
@@ -131,7 +121,7 @@ export async function adsGateHandler(req, res) {
 }
 
 export async function adsShownHandler(req, res) {
-  if (!isVideoAdsEnabled()) {
+  if (!isAdsEnabled()) {
     return res.json({ ok: true });
   }
   prune();
@@ -148,28 +138,10 @@ export async function adsShownHandler(req, res) {
 }
 
 export async function adsVastHandler(_req, res) {
-  if (!isVideoAdsEnabled()) {
-    return res.json({ tagUrl: '', mediaUrl: '', clickThrough: '' });
-  }
   res.setHeader('Cache-Control', 'no-store');
-  return res.json({ tagUrl: vastUrl(), mediaUrl: '', clickThrough: '' });
+  return res.json({ tagUrl: '', mediaUrl: '', clickThrough: '' });
 }
 
 export async function adsVastXmlHandler(_req, res) {
-  if (!isVideoAdsEnabled()) {
-    return res.status(204).end();
-  }
-  try {
-    const r = await fetch(vastUrl(), { redirect: 'follow' });
-    const xml = await r.text();
-    if (!r.ok || !xml) {
-      return res.status(502).end();
-    }
-    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-store');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    return res.send(xml);
-  } catch {
-    return res.status(502).end();
-  }
+  return res.status(204).end();
 }

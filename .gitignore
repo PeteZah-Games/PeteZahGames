@@ -108,6 +108,9 @@ package-lock.json
 
 # PeteZah Specific Secrets 
 
+public/ads.txt
+ads.txt
+
 # 1. All .env files / files containing secrets
 .env
 .env.*

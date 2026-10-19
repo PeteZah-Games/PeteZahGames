@@ -57,7 +57,6 @@ whenQuietEnds(() => {
   inject("https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6640595376330309", {
     crossorigin: "anonymous",
   });
-  inject("https://a.magsrv.com/ad-provider.js");
 });
 
 function applyStoredSettings() {

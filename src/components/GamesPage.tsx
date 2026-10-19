@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Dices, Plus, Star, MoreVertical, X, Trash2, Share2, Copy, Check, Upload, ChevronLeft, ChevronRight, RefreshCw, Crown, Pencil } from "lucide-react";
 import { requestSyncSoon } from "@/lib/settingsSync";
-import { AdResponsiveBanner, AdNativeBar, AdNativeBarAlt } from "@/components/ads/Adsterra";
-import { armAdAudio } from "@/lib/exoclick";
+import { AdResponsiveBanner, AdNativeBar, AdNativeBarAlt } from "@/components/ads/Units";
+import { armAdAudio } from "@/lib/adGate";
 import { originHttpHost } from "@/lib/siteOrigin";
 import { resolveGameViaHref } from "@/lib/proxyTarget";
 import { normalizeGameVia, type GameVia } from "@/lib/mochiPath";
@@ -1074,7 +1074,7 @@ export default function GamesPage({ onNavigate, adminEdit = false, initialQuery 
                 ))}
               </div>
               <div className="pt-4 pb-2">
-                <AdResponsiveBanner />
+                <AdResponsiveBanner dense />
                 <AdNativeBar />
                 <AdNativeBarAlt />
               </div>

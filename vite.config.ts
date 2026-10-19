@@ -254,9 +254,9 @@ export default defineConfig(({ mode }) => ({
           if (id.includes("/components/ProfilePage")) return "portfolio";
           if (id.includes("/components/TrendingDashboard")) return "highlights";
           if (id.includes("/components/VantaBackground")) return "meteorology";
-          if (id.includes("/ads/Adsterra")) return "periodic-table";
+          if (id.includes("/ads/Units")) return "periodic-table";
           if (id.includes("/InterstitialAdGate")) return "lab-safety";
-          if (id.includes("/lib/exoclick")) return "microscope";
+          if (id.includes("/lib/adGate")) return "microscope";
           if (!id.includes("node_modules")) return;
           if (id.includes("three") || id.includes("vanta")) return "earth-science";
           if (id.includes("framer-motion")) return "kinematics";

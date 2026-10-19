@@ -27,6 +27,7 @@ import {
 import { hrefs, isGvHref, marks } from "@/lib/uiMarks";
 import { whenQuietEnds } from "@/lib/quietBoot";
 import { setRivetNavigateHandler } from "@/lib/rivet/host";
+import { StickyAnchor, bootSlotNet } from "@/components/ads/Units";
 
 function getPresenceClientId() {
   try {
@@ -90,6 +91,10 @@ export default function ArcBrowser() {
   const zoomIn = useCallback(() => setZoomLevel((z) => Math.min(z + 10, 200)), []);
   const zoomOut = useCallback(() => setZoomLevel((z) => Math.max(z - 10, 50)), []);
   const resetZoom = useCallback(() => setZoomLevel(100), []);
+
+  useEffect(() => {
+    bootSlotNet();
+  }, []);
 
   useEffect(() => {
     setRivetNavigateHandler((url) => {
@@ -447,6 +452,7 @@ export default function ArcBrowser() {
           </div>
         </main>
       </div>
+      {!dimChrome ? <StickyAnchor /> : null}
       <DiscordPopup />
       <GlobalAnnouncement onNavigate={state.navigateToUrl} />
       <InspectOverlay
