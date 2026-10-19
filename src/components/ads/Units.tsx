@@ -8,8 +8,7 @@ declare global {
   }
 }
 
-const HOST = ["js", "rev", "iq"].join(".");
-const SITE = "petezahgames.com";
+const REV_SCRIPT = "/assets/rev-iq.js";
 const GOOGLE_GAP_MS = 5 * 60 * 1000;
 const GOOGLE_KEY = "pz-g-break";
 const GOOGLE_ARMING_KEY = "pz-g-arming";
@@ -19,18 +18,18 @@ let googleArmTimer: number | null = null;
 
 function ensureNet() {
   if (typeof document === "undefined") return;
-  // Script is loaded once from index.html — never inject a second copy.
+  // Script is loaded once from index.html (same-origin proxy) — never inject a second copy.
   window.reviq = window.reviq || [];
   const existing =
     document.querySelector(`script[data-pz-slot-net="1"]`) ||
-    document.querySelector(`script[src*="js.rev.iq"]`) ||
-    document.querySelector(`script[src*="${HOST}"]`);
+    document.querySelector(`script[src="${REV_SCRIPT}"]`) ||
+    document.querySelector(`script[src*="rev-iq"]`);
   if (existing) {
     existing.setAttribute("data-pz-slot-net", "1");
     return;
   }
   const s = document.createElement("script");
-  s.src = `//${HOST}/${SITE}`;
+  s.src = REV_SCRIPT;
   s.async = true;
   s.defer = true;
   s.dataset.pzSlotNet = "1";
