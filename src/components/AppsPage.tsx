@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Plus, Star, MoreVertical, X, Trash2, Share2, Copy, Check, Upload } from "lucide-react";
 import { requestSyncSoon } from "@/lib/settingsSync";
-import { AdResponsiveBanner, AdNativeBar, AdNativeBarAlt } from "@/components/ads/Units";
+import { AdResponsiveBanner } from "@/components/ads/Units";
 import { armAdAudio } from "@/lib/adGate";
 import { hrefs, marks } from "@/lib/uiMarks";
 import ObfuscatedText from "./ObfuscatedText";
@@ -325,8 +325,6 @@ export default function AppsPage({ onNavigate }: AppsPageProps) {
               </div>
               <div className="pt-4 pb-8">
                 <AdResponsiveBanner dense />
-                <AdNativeBar />
-                <AdNativeBarAlt />
               </div>
             </>
           )}

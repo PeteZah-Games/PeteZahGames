@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Dices, Plus, Star, MoreVertical, X, Trash2, Share2, Copy, Check, Upload, ChevronLeft, ChevronRight, RefreshCw, Crown, Pencil } from "lucide-react";
 import { requestSyncSoon } from "@/lib/settingsSync";
-import { AdResponsiveBanner, AdNativeBar, AdNativeBarAlt } from "@/components/ads/Units";
+import { AdResponsiveBanner } from "@/components/ads/Units";
 import { armAdAudio } from "@/lib/adGate";
 import { originHttpHost } from "@/lib/siteOrigin";
 import { resolveGameViaHref } from "@/lib/proxyTarget";
@@ -1075,8 +1075,6 @@ export default function GamesPage({ onNavigate, adminEdit = false, initialQuery 
               </div>
               <div className="pt-4 pb-2">
                 <AdResponsiveBanner dense />
-                <AdNativeBar />
-                <AdNativeBarAlt />
               </div>
               {hasMore && (
                 <div ref={loadMoreRef} className="flex justify-center py-8">

@@ -27,7 +27,13 @@ import {
 import { hrefs, isGvHref, marks } from "@/lib/uiMarks";
 import { whenQuietEnds } from "@/lib/quietBoot";
 import { setRivetNavigateHandler } from "@/lib/rivet/host";
-import { StickyAnchor, bootSlotNet } from "@/components/ads/Units";
+import {
+  StickyAnchor,
+  bootSlotNet,
+  syncSurfaceAds,
+  isHomeSurface,
+  isEarnSurface,
+} from "@/components/ads/Units";
 
 function getPresenceClientId() {
   try {
@@ -92,9 +98,20 @@ export default function ArcBrowser() {
   const zoomOut = useCallback(() => setZoomLevel((z) => Math.max(z - 10, 50)), []);
   const resetZoom = useCallback(() => setZoomLevel(100), []);
 
+  const prevUrlRef = useRef(state.focusedTab?.url || "");
+  const [stickyOn, setStickyOn] = useState(false);
+
   useEffect(() => {
     bootSlotNet();
   }, []);
+
+  useEffect(() => {
+    const url = state.focusedTab?.url || "";
+    const fromHome = isHomeSurface(prevUrlRef.current);
+    const next = syncSurfaceAds(url, { fromHome });
+    setStickyOn(!!next.sticky && isEarnSurface(url) && !dimChrome);
+    prevUrlRef.current = url;
+  }, [state.focusedTab?.url, dimChrome]);
 
   useEffect(() => {
     setRivetNavigateHandler((url) => {
@@ -452,7 +469,7 @@ export default function ArcBrowser() {
           </div>
         </main>
       </div>
-      {!dimChrome ? <StickyAnchor /> : null}
+      <StickyAnchor enabled={stickyOn} />
       <DiscordPopup />
       <GlobalAnnouncement onNavigate={state.navigateToUrl} />
       <InspectOverlay

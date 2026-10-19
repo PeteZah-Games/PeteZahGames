@@ -210,6 +210,16 @@ If you want to make the website better, the repository is open source, and my dm
       .education-is-key {
         display: none !important;
       }
+      html[data-pz-quiet-ads="1"] [data-ad="anchor"],
+      html[data-pz-quiet-ads="1"] [data-ad="anchor"] iframe,
+      html[data-pz-quiet-ads="1"] [id*="google_ads_iframe"],
+      html[data-pz-quiet-ads="1"] ins.adsbygoogle {
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+        max-height: 0 !important;
+        overflow: hidden !important;
+      }
     </style>
   </head>
   <body>

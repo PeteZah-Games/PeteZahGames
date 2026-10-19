@@ -84,7 +84,7 @@ export function InterstitialOverlay({
     return (
       <GameLaunchSplash
         title={title}
-        minMs={quickSplash ? 3200 : 4200}
+        minMs={quickSplash ? 2800 : 3800}
         onDone={() => {
           onLoadingDone?.();
         }}
@@ -106,30 +106,25 @@ export function InterstitialOverlay({
       }}
     >
       <div style={{ flex: 1, minHeight: 0, position: "relative", overflow: "hidden" }}>
-        {phase === "ad" ? <LoaderSlots /> : null}
+        {phase === "ad" || phase === "checking" ? <LoaderSlots /> : null}
         <div
           style={{
             position: "absolute",
             left: 0,
             right: 0,
-            bottom: 14,
-            zIndex: 4,
+            bottom: 16,
+            zIndex: 8,
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            gap: 8,
+            gap: 6,
             pointerEvents: "none",
           }}
         >
-          <Loader2 size={16} className="animate-spin" style={{ color: "hsla(0,0%,96%,0.85)" }} />
-          <p style={{ margin: 0, fontSize: 12, color: "hsla(0,0%,100%,0.72)" }}>
-            {phase === "ad" ? "Loading — thanks for your support" : "Preparing…"}
+          <Loader2 size={15} className="animate-spin" style={{ color: "hsla(0,0%,96%,0.85)" }} />
+          <p style={{ margin: 0, fontSize: 11, color: "hsla(0,0%,100%,0.55)" }}>
+            {phase === "ad" ? `About ${Math.round(DISPLAY_MS / 1000)} seconds` : "Preparing…"}
           </p>
-          {phase === "ad" ? (
-            <p style={{ margin: 0, fontSize: 10, color: "hsla(0,0%,100%,0.42)" }}>
-              ~{Math.round(DISPLAY_MS / 1000)}s
-            </p>
-          ) : null}
         </div>
       </div>
     </div>

@@ -57,6 +57,10 @@ whenQuietEnds(() => {
   inject("https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6640595376330309", {
     crossorigin: "anonymous",
   });
+  try {
+    (window as any).adsbygoogle = (window as any).adsbygoogle || [];
+    (window as any).adsbygoogle.pauseAdRequests = 1;
+  } catch {}
 });
 
 function applyStoredSettings() {

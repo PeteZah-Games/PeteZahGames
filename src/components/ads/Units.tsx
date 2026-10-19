@@ -1,13 +1,17 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { hrefs, isGHref, isGvHref } from "@/lib/uiMarks";
 
 declare global {
   interface Window {
     reviq?: Array<(api: any) => void> | any;
+    adsbygoogle?: any;
   }
 }
 
 const HOST = ["js", "rev", "iq"].join(".");
 const SITE = "petezahgames.com";
+const GOOGLE_GAP_MS = 4 * 60 * 1000;
+const GOOGLE_KEY = "pz-g-break";
 
 function ensureNet() {
   if (typeof document === "undefined") return;
@@ -21,23 +25,105 @@ function ensureNet() {
   window.reviq = window.reviq || [];
 }
 
-export function bootSlotNet() {
-  ensureNet();
+function withApi(fn: (api: any) => void) {
+  window.reviq = window.reviq || [];
+  if (typeof window.reviq.push === "function") {
+    window.reviq.push(fn);
+  } else {
+    try {
+      fn(window.reviq);
+    } catch {}
+  }
 }
 
-function Label() {
-  return (
-    <span
-      style={{
-        fontSize: 9,
-        letterSpacing: "0.08em",
-        textTransform: "uppercase",
-        color: "hsla(0,0%,100%,0.32)",
-      }}
-    >
-      Ad
-    </span>
-  );
+function pauseGoogle(on: boolean) {
+  try {
+    window.adsbygoogle = window.adsbygoogle || [];
+    window.adsbygoogle.pauseAdRequests = on ? 1 : 0;
+  } catch {}
+}
+
+function lastGoogleAt() {
+  try {
+    return Number(sessionStorage.getItem(GOOGLE_KEY) || 0) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function markGoogle() {
+  try {
+    sessionStorage.setItem(GOOGLE_KEY, String(Date.now()));
+  } catch {}
+}
+
+export function bootSlotNet() {
+  ensureNet();
+  pauseGoogle(true);
+  withApi((api) => {
+    try {
+      api.setAdsEnabled?.(false);
+    } catch {}
+  });
+}
+
+export function isQuietSurface(url: string) {
+  const u = String(url || "").toLowerCase();
+  if (!u || u === "about:blank") return true;
+  if (u.startsWith("petezah://newtab")) return true;
+  if (u.startsWith("petezah://ai")) return true;
+  if (u.startsWith("petezah://account")) return true;
+  if (u.startsWith("petezah://chat")) return true;
+  if (u.startsWith("petezah://settings")) return true;
+  if (u.startsWith("petezah://history")) return true;
+  if (u.startsWith("petezah://bookmarks")) return true;
+  if (u.startsWith("petezah://extensions")) return true;
+  if (u.startsWith("petezah://tools")) return true;
+  if (u.startsWith("petezah://trending")) return true;
+  return false;
+}
+
+export function isEarnSurface(url: string) {
+  const u = String(url || "");
+  if (isGHref(u) || isGvHref(u)) return true;
+  if (u.startsWith("petezah://apps")) return true;
+  if (u.startsWith(hrefs.mu()) || u.startsWith(hrefs.mo())) return true;
+  if (u.startsWith("petezah://changelog")) return true;
+  if (u.startsWith("petezah://vm")) return true;
+  return false;
+}
+
+export function isHomeSurface(url: string) {
+  const u = String(url || "").toLowerCase();
+  return !u || u === "about:blank" || u.startsWith("petezah://newtab") || u.startsWith("petezah://trending");
+}
+
+export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean }) {
+  ensureNet();
+  const quiet = isQuietSurface(url) || !isEarnSurface(url);
+  const earn = isEarnSurface(url);
+  try {
+    document.documentElement.dataset.pzQuietAds = quiet || !earn ? "1" : "0";
+  } catch {}
+  withApi((api) => {
+    try {
+      api.setAdsEnabled?.(!quiet && earn);
+    } catch {}
+  });
+  if (quiet || !earn) {
+    pauseGoogle(true);
+    return { sticky: false, google: false };
+  }
+  const fromHome = !!opts?.fromHome;
+  const due = fromHome || Date.now() - lastGoogleAt() >= GOOGLE_GAP_MS;
+  if (due && (fromHome || isGHref(url) || isGvHref(url))) {
+    pauseGoogle(false);
+    markGoogle();
+    window.setTimeout(() => pauseGoogle(true), 4500);
+    return { sticky: true, google: true };
+  }
+  pauseGoogle(true);
+  return { sticky: true, google: false };
 }
 
 export function Slot({
@@ -105,10 +191,16 @@ function MobileOnly({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-export function StickyAnchor() {
+export function StickyAnchor({ enabled = true }: { enabled?: boolean }) {
   useEffect(() => {
     ensureNet();
-  }, []);
+    withApi((api) => {
+      try {
+        api.setAdsEnabled?.(!!enabled);
+      } catch {}
+    });
+  }, [enabled]);
+  if (!enabled) return null;
   return (
     <div
       aria-hidden
@@ -140,29 +232,25 @@ export function AdResponsiveBanner({
 }) {
   return (
     <div className={className} style={shell} data-pz-ad-slot="1">
-      <Label />
       <DesktopOnly>
         <Slot name="billboard-1" style={{ width: "100%", minHeight: 90 }} kv={{ surface: "page" }} />
-        <Slot name="leaderboard-1" style={{ width: "100%", minHeight: 70, marginTop: 6 }} kv={{ surface: "page" }} />
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            gap: 12,
-            width: "100%",
-            marginTop: 8,
-            flexWrap: "wrap",
-          }}
-        >
-          <Slot name="left-rail-1" style={{ minWidth: 160, minHeight: 250, flex: "1 1 160px", maxWidth: 320 }} />
-          <Slot name="right-rail-1" style={{ minWidth: 160, minHeight: 250, flex: "1 1 160px", maxWidth: 320 }} />
-          {dense ? (
-            <>
-              <Slot name="left-rail-2" style={{ minWidth: 160, minHeight: 250, flex: "1 1 160px", maxWidth: 320 }} />
-              <Slot name="right-rail-2" style={{ minWidth: 160, minHeight: 250, flex: "1 1 160px", maxWidth: 320 }} />
-            </>
-          ) : null}
-        </div>
+        {dense ? (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              gap: 12,
+              width: "100%",
+              marginTop: 8,
+              flexWrap: "wrap",
+            }}
+          >
+            <Slot name="left-rail-1" style={{ minWidth: 160, minHeight: 250, flex: "1 1 160px", maxWidth: 320 }} />
+            <Slot name="right-rail-1" style={{ minWidth: 160, minHeight: 250, flex: "1 1 160px", maxWidth: 320 }} />
+          </div>
+        ) : (
+          <Slot name="leaderboard-1" style={{ width: "100%", minHeight: 70, marginTop: 6 }} kv={{ surface: "page" }} />
+        )}
       </DesktopOnly>
       <MobileOnly>
         <Slot name="mobile-unit-1" style={{ width: "100%", minHeight: 100 }} kv={{ surface: "page" }} />
@@ -197,6 +285,11 @@ export function AdNativeBarAlt() {
 export function LoaderSlots() {
   useEffect(() => {
     ensureNet();
+    withApi((api) => {
+      try {
+        api.setAdsEnabled?.(true);
+      } catch {}
+    });
   }, []);
   return (
     <div
@@ -207,33 +300,63 @@ export function LoaderSlots() {
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        justifyContent: "center",
-        gap: 10,
-        padding: "16px 12px 28px",
+        padding: "18px 14px 20px",
         overflow: "auto",
         pointerEvents: "auto",
+        background: "radial-gradient(ellipse at 50% 0%, hsla(213,40%,18%,0.55), #070b12 55%)",
       }}
       data-pz-ad-slot="1"
     >
+      <div
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 6,
+          width: "min(720px, 100%)",
+          marginBottom: 14,
+          padding: "16px 18px",
+          borderRadius: 14,
+          background: "hsla(216, 32%, 8%, 0.94)",
+          border: "1px solid hsla(210, 40%, 80%, 0.16)",
+          boxShadow: "0 12px 40px rgba(0,0,0,0.45)",
+          textAlign: "center",
+          pointerEvents: "none",
+        }}
+      >
+        <p
+          style={{
+            margin: 0,
+            fontSize: "clamp(17px, 2.6vw, 22px)",
+            fontWeight: 750,
+            letterSpacing: "-0.02em",
+            color: "#f4f7fb",
+            lineHeight: 1.25,
+          }}
+        >
+          Please allow a brief ad break before loading
+        </p>
+        <p style={{ margin: "8px 0 0", fontSize: 12, color: "hsla(210,20%,78%,0.78)" }}>
+          Thanks for supporting PeteZah — your game starts right after this.
+        </p>
+      </div>
       <Slot name="billboard-1" style={{ width: "min(970px, 100%)", minHeight: 90 }} kv={{ surface: "loader" }} />
-      <Slot name="leaderboard-1" style={{ width: "min(728px, 100%)", minHeight: 70 }} kv={{ surface: "loader" }} />
       <div
         style={{
           display: "flex",
-          gap: 10,
+          gap: 12,
           flexWrap: "wrap",
           justifyContent: "center",
           width: "100%",
-          maxWidth: 980,
+          maxWidth: 720,
+          marginTop: 12,
         }}
       >
         <Slot name="left-rail-1" style={{ minWidth: 150, minHeight: 220, flex: "1 1 150px", maxWidth: 300 }} kv={{ surface: "loader" }} />
         <Slot name="right-rail-1" style={{ minWidth: 150, minHeight: 220, flex: "1 1 150px", maxWidth: 300 }} kv={{ surface: "loader" }} />
-        <Slot name="left-rail-2" style={{ minWidth: 150, minHeight: 220, flex: "1 1 150px", maxWidth: 300 }} kv={{ surface: "loader" }} />
-        <Slot name="right-rail-2" style={{ minWidth: 150, minHeight: 220, flex: "1 1 150px", maxWidth: 300 }} kv={{ surface: "loader" }} />
       </div>
-      <Slot name="mobile-unit-1" style={{ width: "min(360px, 100%)", minHeight: 100 }} kv={{ surface: "loader" }} />
+      <MobileOnly>
+        <Slot name="mobile-unit-1" style={{ width: "min(360px, 100%)", minHeight: 100, marginTop: 12 }} kv={{ surface: "loader" }} />
+      </MobileOnly>
     </div>
   );
 }
-
