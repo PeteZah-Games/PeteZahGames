@@ -29,10 +29,12 @@ import { whenQuietEnds } from "@/lib/quietBoot";
 import { setRivetNavigateHandler } from "@/lib/rivet/host";
 import {
   StickyAnchor,
+  SideRails,
   bootSlotNet,
   syncSurfaceAds,
   isHomeSurface,
   isPlaySurface,
+  isSoftEarn,
 } from "@/components/ads/Units";
 
 function getPresenceClientId() {
@@ -100,6 +102,7 @@ export default function ArcBrowser() {
 
   const prevUrlRef = useRef(state.focusedTab?.url || "");
   const [stickyOn, setStickyOn] = useState(false);
+  const [railsOn, setRailsOn] = useState(false);
 
   useEffect(() => {
     bootSlotNet();
@@ -111,6 +114,7 @@ export default function ArcBrowser() {
     const fromHome = isHomeSurface(prevUrlRef.current);
     syncSurfaceAds(url, { fromHome, framed });
     setStickyOn(isPlaySurface(url, framed));
+    setRailsOn(isSoftEarn(url) && !isPlaySurface(url, framed));
     prevUrlRef.current = url;
   }, [state.focusedTab?.url, state.focusedTab?.frame]);
 
@@ -471,6 +475,7 @@ export default function ArcBrowser() {
         </main>
       </div>
       <StickyAnchor enabled={stickyOn} />
+      <SideRails enabled={railsOn} />
       <DiscordPopup />
       <GlobalAnnouncement onNavigate={state.navigateToUrl} />
       <InspectOverlay

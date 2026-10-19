@@ -19,14 +19,22 @@ let googleArmTimer: number | null = null;
 
 function ensureNet() {
   if (typeof document === "undefined") return;
-  if (document.querySelector(`script[data-pz-slot-net="1"]`)) return;
+  // Script is loaded once from index.html — never inject a second copy.
+  window.reviq = window.reviq || [];
+  const existing =
+    document.querySelector(`script[data-pz-slot-net="1"]`) ||
+    document.querySelector(`script[src*="js.rev.iq"]`) ||
+    document.querySelector(`script[src*="${HOST}"]`);
+  if (existing) {
+    existing.setAttribute("data-pz-slot-net", "1");
+    return;
+  }
   const s = document.createElement("script");
   s.src = `//${HOST}/${SITE}`;
   s.async = true;
   s.defer = true;
   s.dataset.pzSlotNet = "1";
   document.head.appendChild(s);
-  window.reviq = window.reviq || [];
 }
 
 function withApi(fn: (api: any) => void) {
@@ -206,7 +214,7 @@ export function isHomeSurface(url: string) {
   return !u || u === "about:blank" || u.startsWith("petezah://newtab") || u.startsWith("petezah://trending");
 }
 
-function isSoftEarn(url: string) {
+export function isSoftEarn(url: string) {
   const u = String(url || "");
   if (u.startsWith("petezah://apps")) return true;
   if (u.startsWith(hrefs.mu()) || u.startsWith(hrefs.mo())) return true;
@@ -396,6 +404,64 @@ export function StickyAnchor({ enabled = true }: { enabled?: boolean }) {
   );
 }
 
+const railShell: CSSProperties = {
+  position: "fixed",
+  top: "50%",
+  transform: "translateY(-50%)",
+  zIndex: 45,
+  width: 160,
+  minHeight: 600,
+  maxHeight: "min(600px, calc(100dvh - 120px))",
+  overflow: "hidden",
+  borderRadius: 10,
+  background: "hsla(216, 28%, 8%, 0.55)",
+  border: "1px solid hsla(210, 30%, 80%, 0.1)",
+  boxShadow: "0 12px 32px rgba(0,0,0,0.35)",
+  pointerEvents: "auto",
+};
+
+/** Desktop left/right rail placements (RevIQ left-rail-1 / right-rail-1). */
+export function SideRails({ enabled = true }: { enabled?: boolean }) {
+  useEffect(() => {
+    if (!enabled) return;
+    ensureNet();
+    enablePartnerAds();
+  }, [enabled]);
+
+  if (!enabled) return null;
+
+  return (
+    <DesktopOnly>
+      <div
+        data-pz-ad-slot="1"
+        data-pz-side-rail="left"
+        style={{ ...railShell, left: 8 }}
+        aria-hidden
+      >
+        <Slot
+          name="left-rail-1"
+          size="160x600"
+          style={{ width: "100%", minHeight: 600 }}
+          kv={{ surface: "rail" }}
+        />
+      </div>
+      <div
+        data-pz-ad-slot="1"
+        data-pz-side-rail="right"
+        style={{ ...railShell, right: 8 }}
+        aria-hidden
+      >
+        <Slot
+          name="right-rail-1"
+          size="160x600"
+          style={{ width: "100%", minHeight: 600 }}
+          kv={{ surface: "rail" }}
+        />
+      </div>
+    </DesktopOnly>
+  );
+}
+
 export function AdResponsiveBanner({
   className = "",
   dense = false,
@@ -408,23 +474,11 @@ export function AdResponsiveBanner({
     <div className={className} style={shell} data-pz-ad-slot="1">
       <DesktopOnly>
         <Slot name="billboard-1" style={{ width: "100%", minHeight: 90 }} kv={{ surface: "page" }} />
-        {dense ? (
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              gap: 12,
-              width: "100%",
-              marginTop: 8,
-              flexWrap: "wrap",
-            }}
-          >
-            <Slot name="left-rail-1" style={{ minWidth: 160, minHeight: 250, flex: "1 1 160px", maxWidth: 320 }} />
-            <Slot name="right-rail-1" style={{ minWidth: 160, minHeight: 250, flex: "1 1 160px", maxWidth: 320 }} />
-          </div>
-        ) : (
-          <Slot name="leaderboard-1" style={{ width: "100%", minHeight: 70, marginTop: 6 }} kv={{ surface: "page" }} />
-        )}
+        <Slot
+          name="leaderboard-1"
+          style={{ width: "100%", minHeight: 70, marginTop: dense ? 8 : 6 }}
+          kv={{ surface: "page" }}
+        />
       </DesktopOnly>
       <MobileOnly>
         <Slot name="mobile-unit-1" style={{ width: "100%", minHeight: 100 }} kv={{ surface: "page" }} />
