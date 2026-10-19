@@ -284,11 +284,8 @@ router.post('/', async (req, res) => {
     if (err.code === 'QUEUE_FULL') return res.status(503).json({ error: 'Server busy, try again in a moment' });
     if (err.name === 'AbortError') return res.status(504).json({ error: 'Request timeout' });
     if (err.code === 'GROQ_ERROR') {
-      const detail = String(err.detail || err.message || 'AI service error')
-        .replace(/gsk_[A-Za-z0-9_-]+/g, '')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .slice(0, 240) || 'AI service error';
+      console.error('Groq upstream error:', err.detail || err.message);
+      const detail = 'AI service error';
       return res.status(502).json({ error: detail, detail });
     }
     return res.status(500).json({ error: 'AI service unavailable' });
