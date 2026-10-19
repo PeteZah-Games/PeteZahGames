@@ -100,6 +100,10 @@ export function isEarnSurface(url: string) {
   return false;
 }
 
+export function isPlaySurface(url: string, framed = false) {
+  return isGvHref(String(url || "")) || !!framed;
+}
+
 export function isHomeSurface(url: string) {
   const u = String(url || "").toLowerCase();
   return !u || u === "about:blank" || u.startsWith("petezah://newtab") || u.startsWith("petezah://trending");
@@ -133,7 +137,7 @@ export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean }) {
     } catch {}
   }
 
-  return { sticky: earn && !quiet, google: true };
+  return { sticky: false, google: true };
 }
 
 export function Slot({
@@ -202,6 +206,8 @@ function MobileOnly({ children }: { children: ReactNode }) {
 }
 
 export function StickyAnchor({ enabled = true }: { enabled?: boolean }) {
+  const [closed, setClosed] = useState(false);
+
   useEffect(() => {
     ensureNet();
     withApi((api) => {
@@ -210,24 +216,65 @@ export function StickyAnchor({ enabled = true }: { enabled?: boolean }) {
       } catch {}
     });
   }, []);
-  if (!enabled) return null;
+
+  useEffect(() => {
+    if (!enabled) setClosed(false);
+  }, [enabled]);
+
+  if (!enabled || closed) return null;
+
   return (
     <div
-      aria-hidden
       data-pz-forced-anchor="1"
       style={{
         position: "fixed",
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 40,
+        left: 12,
+        bottom: 12,
+        zIndex: 90,
         pointerEvents: "none",
         display: "flex",
-        justifyContent: "center",
+        justifyContent: "flex-start",
+        maxWidth: "min(420px, calc(100vw - 24px))",
       }}
     >
-      <div style={{ pointerEvents: "auto", maxWidth: "100%" }}>
-        <Slot name="anchor" kv={{ surface: "shell" }} />
+      <div
+        style={{
+          position: "relative",
+          pointerEvents: "auto",
+          maxWidth: "100%",
+          borderRadius: 10,
+          overflow: "visible",
+          boxShadow: "0 10px 28px rgba(0,0,0,0.35)",
+        }}
+      >
+        <button
+          type="button"
+          aria-label="Close ad"
+          onClick={() => setClosed(true)}
+          style={{
+            position: "absolute",
+            top: -8,
+            right: -8,
+            zIndex: 5,
+            width: 26,
+            height: 26,
+            borderRadius: 999,
+            border: "1px solid hsla(210,30%,80%,0.25)",
+            background: "hsla(220, 28%, 10%, 0.92)",
+            color: "#fff",
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 14,
+            fontWeight: 700,
+            lineHeight: 1,
+            boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
+          }}
+        >
+          ×
+        </button>
+        <Slot name="anchor" kv={{ surface: "play" }} />
       </div>
     </div>
   );

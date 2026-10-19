@@ -32,7 +32,7 @@ import {
   bootSlotNet,
   syncSurfaceAds,
   isHomeSurface,
-  isEarnSurface,
+  isPlaySurface,
 } from "@/components/ads/Units";
 
 function getPresenceClientId() {
@@ -107,11 +107,12 @@ export default function ArcBrowser() {
 
   useEffect(() => {
     const url = state.focusedTab?.url || "";
+    const framed = !!state.focusedTab?.frame;
     const fromHome = isHomeSurface(prevUrlRef.current);
-    const next = syncSurfaceAds(url, { fromHome });
-    setStickyOn(!!next.sticky && isEarnSurface(url) && !dimChrome);
+    syncSurfaceAds(url, { fromHome });
+    setStickyOn(isPlaySurface(url, framed));
     prevUrlRef.current = url;
-  }, [state.focusedTab?.url, dimChrome]);
+  }, [state.focusedTab?.url, state.focusedTab?.frame]);
 
   useEffect(() => {
     setRivetNavigateHandler((url) => {
