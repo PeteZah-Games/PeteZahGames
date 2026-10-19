@@ -215,14 +215,17 @@ If you want to make the website better, the repository is open source, and my dm
         visibility: hidden !important;
         pointer-events: none !important;
       }
-      html[data-pz-play-ads="1"] iframe[src*="googlesyndication"],
-      html[data-pz-play-ads="1"] iframe[src*="doubleclick"],
-      html[data-pz-play-ads="1"] iframe[src*="pagead"],
-      html[data-pz-play-ads="1"] iframe[src*="adservice"],
-      html[data-pz-play-ads="1"] ins.adsbygoogle,
-      html[data-pz-play-ads="1"] [id*="google_ads"],
-      html[data-pz-play-ads="1"] [class*="GoogleActiveView"],
-      html[data-pz-play-ads="1"] [data-pz-scrubbed="1"] {
+      /* Gameviewer only: hide Google reward/vignette shells, not in-page [data-ad] units */
+      html[data-pz-play-ads="1"] body > iframe[src*="googlesyndication"],
+      html[data-pz-play-ads="1"] body > iframe[src*="doubleclick"],
+      html[data-pz-play-ads="1"] body > iframe[src*="pagead"],
+      html[data-pz-play-ads="1"] body > iframe[src*="adservice"],
+      html[data-pz-play-ads="1"] body > ins.adsbygoogle,
+      html[data-pz-play-ads="1"] body > #google_vignette,
+      html[data-pz-play-ads="1"] body > .google-auto-placed,
+      html[data-pz-play-ads="1"] body > [id*="google_ads"],
+      html[data-pz-play-ads="1"] body > [class*="GoogleActiveView"],
+      html[data-pz-play-ads="1"] body > [data-pz-scrubbed="1"] {
         display: none !important;
         visibility: hidden !important;
         pointer-events: none !important;

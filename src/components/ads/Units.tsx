@@ -125,38 +125,43 @@ function hideOverlay(el: Element) {
   h.setAttribute("data-pz-scrubbed", "1");
 }
 
+function clearScrubbed() {
+  try {
+    for (const el of Array.from(document.querySelectorAll("[data-pz-scrubbed='1']"))) {
+      const h = el as HTMLElement;
+      h.style.removeProperty("display");
+      h.style.removeProperty("visibility");
+      h.style.removeProperty("pointer-events");
+      h.style.removeProperty("opacity");
+      h.style.removeProperty("max-height");
+      h.style.removeProperty("max-width");
+      h.removeAttribute("data-pz-scrubbed");
+    }
+  } catch {}
+}
+
 function scrubPlayOverlays() {
   try {
     pauseGoogle(true);
+    // Only Google reward/vignette shells as direct body children.
+    // Never touch [data-ad] fills inside #root.
     const nodes = document.querySelectorAll(
-      "iframe, ins.adsbygoogle, div[id*='google'], div[class*='GoogleActiveView'], #google_vignette, .google-auto-placed"
+      "body > iframe, body > ins.adsbygoogle, body > #google_vignette, body > .google-auto-placed, body > div[id*='google'], body > div[class*='GoogleActiveView'], body > div[id^='aswift_']"
     );
     for (const el of Array.from(nodes)) {
-      if (!isGoogleOverlay(el)) continue;
-      hideOverlay(el);
-    }
-    for (const el of Array.from(document.body.children)) {
-      if (el.id === "root") continue;
       const h = el as HTMLElement;
       if (h.dataset?.pzForcedAnchor === "1") continue;
       if (h.dataset?.pzAdSlot === "1") continue;
-      if (h.dataset?.pzKeep === "1") continue;
-      const tag = h.tagName;
-      if (tag === "SCRIPT" || tag === "STYLE" || tag === "LINK" || tag === "META") continue;
+      const src = String((el as HTMLIFrameElement).src || "");
       const id = String(h.id || "");
       const cls = String(h.className || "");
-      const looksGoogle = /google|vignette|adsbygoogle|aswift_|rewarded/i.test(id + " " + cls);
-      let looksPartner = false;
-      try {
-        const st = window.getComputedStyle(h);
-        const z = Number.parseInt(st.zIndex || "0", 10) || 0;
-        const fixed = st.position === "fixed" || st.position === "sticky";
-        const covers =
-          (h.offsetWidth >= window.innerWidth * 0.7 && h.offsetHeight >= window.innerHeight * 0.35) ||
-          (fixed && z >= 1000 && h.offsetHeight >= 120);
-        looksPartner = covers && !h.querySelector?.("[data-pz-forced-anchor='1']");
-      } catch {}
-      if (looksGoogle || looksPartner) hideOverlay(h);
+      const google =
+        /google|doubleclick|googlesyndication|pagead|adservice|aswift_/i.test(src) ||
+        /google_ads|GoogleActiveView|adsbygoogle|vignette|rewarded|google_vignette|google-auto-placed|aswift_/i.test(
+          id + " " + cls
+        );
+      if (!google) continue;
+      hideOverlay(el);
     }
   } catch {}
 }
@@ -164,11 +169,11 @@ function scrubPlayOverlays() {
 function startPlayScrub() {
   scrubPlayOverlays();
   if (playScrubTimer == null) {
-    playScrubTimer = window.setInterval(scrubPlayOverlays, 700);
+    playScrubTimer = window.setInterval(scrubPlayOverlays, 900);
   }
   if (!playScrubObs && typeof MutationObserver !== "undefined") {
     playScrubObs = new MutationObserver(() => scrubPlayOverlays());
-    playScrubObs.observe(document.documentElement, { childList: true, subtree: true });
+    playScrubObs.observe(document.body, { childList: true, subtree: false });
   }
 }
 
@@ -181,16 +186,21 @@ function stopPlayScrub() {
     playScrubObs.disconnect();
     playScrubObs = null;
   }
+  clearScrubbed();
 }
 
-export function bootSlotNet() {
-  ensureNet();
-  loadGooglePaused();
+function enablePartnerAds() {
   withApi((api) => {
     try {
       api.setAdsEnabled?.(true);
     } catch {}
   });
+}
+
+export function bootSlotNet() {
+  ensureNet();
+  loadGooglePaused();
+  enablePartnerAds();
 }
 
 export function isQuietSurface(url: string) {
@@ -239,41 +249,39 @@ function isSoftEarn(url: string) {
 
 export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean; framed?: boolean }) {
   ensureNet();
+  enablePartnerAds();
   const home = isHomeSurface(url);
   const quiet = isQuietSurface(url);
   const play = isPlaySurface(url, !!opts?.framed);
+  // Hard lock only on gameviewer — proxy frames still get sticky, but keep page units alive.
+  const hardPlay = isGvHref(String(url || ""));
   try {
     document.documentElement.dataset.pzHomeAds = home || isGHref(url) ? "1" : "0";
-    document.documentElement.dataset.pzPlayAds = play ? "1" : "0";
+    document.documentElement.dataset.pzPlayAds = hardPlay ? "1" : "0";
   } catch {}
 
-  if (play) {
-    stopPlayScrub();
+  if (hardPlay) {
     startPlayScrub();
-    withApi((api) => {
-      try {
-        api.setAdsEnabled?.(true);
-      } catch {}
-    });
     pauseGoogle(true);
     loadGooglePaused();
     return { sticky: true, google: false };
   }
 
   stopPlayScrub();
-  pauseGoogle(true);
 
-  withApi((api) => {
-    try {
-      api.setAdsEnabled?.(!quiet);
-    } catch {}
-  });
+  if (play) {
+    // Proxied tab: closable sticky OK, do not nuke partner/Google inventory for other surfaces.
+    pauseGoogle(true);
+    return { sticky: true, google: false };
+  }
 
-  if (!quiet && isSoftEarn(url) && opts?.fromHome && googleDue()) {
+  // Keep partner display slots filling on apps / movies / music / changelog / loader.
+  if (!quiet && isSoftEarn(url) && googleDue()) {
     armGoogleBreak();
     return { sticky: false, google: true };
   }
 
+  pauseGoogle(true);
   return { sticky: false, google: false };
 }
 
@@ -347,11 +355,7 @@ export function StickyAnchor({ enabled = true }: { enabled?: boolean }) {
 
   useEffect(() => {
     ensureNet();
-    withApi((api) => {
-      try {
-        api.setAdsEnabled?.(true);
-      } catch {}
-    });
+    enablePartnerAds();
   }, []);
 
   useEffect(() => {
@@ -480,12 +484,8 @@ export function AdNativeBarAlt() {
 export function LoaderSlots() {
   useEffect(() => {
     ensureNet();
+    enablePartnerAds();
     pauseGoogle(true);
-    withApi((api) => {
-      try {
-        api.setAdsEnabled?.(true);
-      } catch {}
-    });
   }, []);
   return (
     <div
