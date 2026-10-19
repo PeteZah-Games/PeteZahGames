@@ -325,6 +325,7 @@ app.use('/api/', (req, res, next) => {
   if (req.path === '/websocket/normal' || req.path === '/websocket/normal/' || req.path === '/websocket/tor' || req.path === '/websocket/tor/') {
     return next();
   }
+  if (req.path === '/ads/net.js') return next();
   if (req.path.startsWith('/music/media/')) return next();
   if (req.path.startsWith('/study/') || req.path.startsWith('/flashcards/') || req.path.startsWith('/quiz/')) return next();
   return AUTH_PATHS.has(req.path) ? authLimiter(req, res, next) : apiLimiter(req, res, next);
@@ -443,6 +444,8 @@ app.post('/api/ads/gate', adsGateLimiter, adsGateHandler);
 app.post('/api/ads/shown', adsGateLimiter, adsShownHandler);
 app.get('/api/ads/vast', adsVastLimiter, adsVastHandler);
 app.get('/api/ads/vast.xml', adsVastLimiter, adsVastXmlHandler);
+// Same-origin RevIQ script + domain-aware ads.txt (must not live under /assets — nginx serves that static).
+mountRevAssets(app);
 app.get('/api/admin/ad-reports', adReportsLimiter, getAdminAdReportsHandler);
 app.get('/api/admin/ai-grants', aiGrantsLimiter, listAiGrantsHandler);
 app.post('/api/admin/ai-grants', aiGrantsLimiter, createAiGrantHandler);
@@ -524,9 +527,6 @@ app.get('/api/admin/firefox-vm/live', getFirefoxVmLiveHandler);
 app.get('/api/admin/firefox-vm/history', getFirefoxVmHistoryHandler);
 
 app.use(mochiRouter);
-
-// Domain-aware ads.txt + cached same-origin RevIQ script (before static / Vite).
-mountRevAssets(app);
 
 const mochiWsProxy = httpProxy.createProxyServer({
   target: 'http://127.0.0.1:3005',

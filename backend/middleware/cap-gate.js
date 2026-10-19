@@ -35,7 +35,7 @@ const OPEN_EXACT = new Set([
   '/favicon.ico',
   '/robots.txt',
   '/ads.txt',
-  '/assets/rev-iq.js',
+  '/api/ads/net.js',
   '/firefox-wasm/thanks.html',
   '/pz-vanta.js',
   '/vendor/vanta.fog.min.js',

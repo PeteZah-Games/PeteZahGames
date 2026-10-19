@@ -8,7 +8,7 @@ declare global {
   }
 }
 
-const REV_SCRIPT = "/assets/rev-iq.js";
+const REV_SCRIPT = "/api/ads/net.js";
 const GOOGLE_GAP_MS = 5 * 60 * 1000;
 const GOOGLE_KEY = "pz-g-break";
 const GOOGLE_ARMING_KEY = "pz-g-arming";

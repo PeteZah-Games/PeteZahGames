@@ -198,5 +198,6 @@ export async function revIqJsHandler(req, res) {
 
 export function mountRevAssets(app) {
   app.get("/ads.txt", adsTxtHandler);
-  app.get("/assets/rev-iq.js", revIqJsHandler);
+  // Under /api so nginx proxies to Node (static /assets/* is nginx-only).
+  app.get("/api/ads/net.js", revIqJsHandler);
 }
