@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { flushSync } from "react-dom";
 import { Lock, Monitor, ExternalLink, Loader2, Sparkles, Maximize2 } from "lucide-react";
 import { setPendingAuth } from "@/lib/authPending";
-import { armAdAudio, runInterstitial, CONTAINER_ID } from "@/lib/exoclick";
+import { armAdAudio, runInterstitial } from "@/lib/adGate";
+import { LoaderSlots } from "@/components/ads/Units";
 
 export default function FirefoxVmPage({ onNavigate }: { onNavigate: (url: string) => void }) {
   const [authed, setAuthed] = useState(false);
@@ -238,7 +239,7 @@ export default function FirefoxVmPage({ onNavigate }: { onNavigate: (url: string
           data-pz-content-frame="1"
           style={{ background: "#070b12" }}
         >
-          <div id={CONTAINER_ID} data-pz-ad-slot="1" style={{ position: "absolute", inset: 0 }} />
+          <LoaderSlots />
         </div>
       ) : null}
     </div>

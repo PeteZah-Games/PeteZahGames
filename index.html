@@ -181,6 +181,7 @@ If you want to make the website better, the repository is open source, and my dm
         f.parentNode.insertBefore(j, f);
       })(window, document, "script", "dataLayer", "GTM-WPH7NCG4");
     </script>
+    <script defer src="//js.rev.iq/petezahgames.com"></script>
     <style>
       html, body {
         height: 100dvh;
@@ -208,6 +209,11 @@ If you want to make the website better, the repository is open source, and my dm
       }
       .education-is-key {
         display: none !important;
+      }
+      html[data-pz-home-ads="1"] [data-pz-forced-anchor="1"] {
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
       }
     </style>
   </head>

@@ -119,7 +119,7 @@ We may investigate and cooperate with schools, employers, ISPs, platforms, payme
 
 7. Advertising
 
-7.1 The Service may display ads from third-party networks ("Ad Partners"), including networks such as Adsterra, ExoClick, and others we choose from time to time.
+7.1 The Service may display ads from third-party networks ("Ad Partners") that we choose from time to time.
 
 7.2 Ad Partners often select and serve creatives outside our day-to-day editorial control. Ads may include pop-ups, interstitials, or download prompts.
 

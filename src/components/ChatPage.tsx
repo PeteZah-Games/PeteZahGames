@@ -997,10 +997,10 @@ export default function ChatPage({ onNavigate }: { onNavigate: (url: string) => 
         const again = await fetch(`/api/chat/member?${new URLSearchParams({ id: profileId })}`, { credentials: "include" });
         if (again.ok) setProfile(await again.json());
       }
-      return true;
-    } catch {
+        return true;
+      } catch {
       setNote("Chat is unavailable right now.");
-      return false;
+        return false;
     } finally {
       setBusy(false);
     }

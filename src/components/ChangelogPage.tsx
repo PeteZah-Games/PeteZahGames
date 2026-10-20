@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Megaphone, ChevronDown, ChevronUp, Heart, Trash2, Send, Loader2, Plus, MessageSquare } from "lucide-react";
-import { AdResponsiveBanner, AdNativeBarAlt } from "@/components/ads/Adsterra";
+import { AdResponsiveBanner, AdNativeBarAlt } from "@/components/ads/Units";
 import { MentionsText } from "@/lib/mentions";
 
 interface Entry { id: string; title: string; content: string; username?: string; created_at: number; likes?: number; }
@@ -339,7 +339,7 @@ export default function ChangelogPage({ onNavigate }: { onNavigate: (url: string
           </motion.div>
         ))}
       </div>
-      <AdResponsiveBanner exo={false} />
+      <AdResponsiveBanner />
       <AdNativeBarAlt />
     </div>
   );

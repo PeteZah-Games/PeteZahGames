@@ -29,7 +29,6 @@ import {
   LogIn,
   UserRound,
 } from "lucide-react";
-import { AdNativeBarAlt } from "@/components/ads/Adsterra";
 import { setPendingAuth } from "@/lib/authPending";
 
 interface Message {
@@ -1933,9 +1932,6 @@ export default function AIPage({
                   </p>
                 </div>
                 <div className="w-full">{composer}</div>
-                <div className="w-full" style={{ marginTop: 8 }}>
-                  <AdNativeBarAlt />
-                </div>
               </motion.div>
             </div>
             <style>{`@keyframes pz-caret { 0%,100%{opacity:1} 50%{opacity:0} }`}</style>
@@ -2035,9 +2031,6 @@ export default function AIPage({
 
             <div className="flex-shrink-0 relative z-10" style={{ padding: "0 max(8%, 20px) 18px" }}>
               {composer}
-              <div style={{ paddingTop: 8 }}>
-                <AdNativeBarAlt />
-              </div>
             </div>
           </>
         )}

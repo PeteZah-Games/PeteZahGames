@@ -1,17 +1,11 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
-import { requestAdGate, playVideoAd, stopVideoAd, CONTAINER_ID } from "@/lib/exoclick";
-import {
-  playLoaderNetworkAdsBehind,
-  scrubAdsterraLoadingArtifacts,
-} from "@/components/ads/Adsterra";
+import { requestAdGate, playDisplayBreak, DISPLAY_MS } from "@/lib/adGate";
+import { LoaderSlots } from "@/components/ads/Units";
 import { GameLaunchSplash } from "@/components/GameLaunchSplash";
 
 type Context = "game" | "app" | "vm";
 export type InterstitialPhase = "checking" | "ad" | "loading" | "ready";
-
-const HARD_BEHIND_MS = 45000;
-const BEHIND_HOST_ID = "pz-loader-ad-behind";
 
 export function useInterstitialUnlock(context: Context, enabled = true) {
   const [unlocked, setUnlocked] = useState(!enabled);
@@ -38,37 +32,15 @@ export function useInterstitialUnlock(context: Context, enabled = true) {
 
         if (gate.show) {
           setPhase("ad");
-          setHadAd(true);
           await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
           if (cancelled) return;
-          const behind = playLoaderNetworkAdsBehind(BEHIND_HOST_ID, HARD_BEHIND_MS);
-          const result = await playVideoAd(context);
-          if (cancelled) {
-            try {
-              await behind;
-            } catch {}
-            return;
-          }
-          try {
-            stopVideoAd();
-          } catch {}
-          try {
-            scrubAdsterraLoadingArtifacts();
-          } catch {}
-          if (result === "error" || result === "skip") {
-            setHadAd(false);
-          }
+          const result = await playDisplayBreak(context);
+          if (cancelled) return;
+          setHadAd(result === "done");
         }
       } catch {
-        try {
-          stopVideoAd();
-        } catch {}
         setHadAd(false);
       }
-
-      try {
-        scrubAdsterraLoadingArtifacts();
-      } catch {}
 
       if (cancelled) return;
 
@@ -83,12 +55,6 @@ export function useInterstitialUnlock(context: Context, enabled = true) {
 
     return () => {
       cancelled = true;
-      try {
-        stopVideoAd();
-      } catch {}
-      try {
-        scrubAdsterraLoadingArtifacts();
-      } catch {}
     };
   }, [context, enabled]);
 
@@ -118,7 +84,7 @@ export function InterstitialOverlay({
     return (
       <GameLaunchSplash
         title={title}
-        minMs={quickSplash ? 900 : 2400}
+        minMs={quickSplash ? 2800 : 3800}
         onDone={() => {
           onLoadingDone?.();
         }}
@@ -136,44 +102,30 @@ export function InterstitialOverlay({
         display: "flex",
         flexDirection: "column",
         background: "#070b12",
-        overflow: "visible",
+        overflow: "hidden",
       }}
     >
-      <div style={{ flex: 1, minHeight: 0, position: "relative", overflow: "visible" }}>
-        {/* Network banners sit behind the video layer — no bottom strip stealing height */}
-        <div
-          id={BEHIND_HOST_ID}
-          style={{
-            position: "absolute",
-            inset: 0,
-            zIndex: 1,
-            overflow: "hidden",
-            pointerEvents: "none",
-          }}
-        />
+      <div style={{ flex: 1, minHeight: 0, position: "relative", overflow: "hidden" }}>
+        {phase === "ad" || phase === "checking" ? <LoaderSlots /> : null}
         <div
           style={{
             position: "absolute",
-            inset: 0,
-            zIndex: 2,
+            left: 0,
+            right: 0,
+            bottom: 16,
+            zIndex: 8,
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            justifyContent: "center",
-            gap: 10,
+            gap: 6,
             pointerEvents: "none",
           }}
         >
-          <Loader2 size={18} className="animate-spin" style={{ color: "hsla(0,0%,96%,0.85)" }} />
-          <p style={{ margin: 0, fontSize: 12, color: "hsla(0,0%,100%,0.72)" }}>
-            {phase === "ad" ? "Loading — thanks for your support" : "Preparing…"}
+          <Loader2 size={15} className="animate-spin" style={{ color: "hsla(0,0%,96%,0.85)" }} />
+          <p style={{ margin: 0, fontSize: 11, color: "hsla(0,0%,100%,0.55)" }}>
+            {phase === "ad" ? `About ${Math.round(DISPLAY_MS / 1000)} seconds` : "Preparing…"}
           </p>
         </div>
-        <div
-          id={CONTAINER_ID}
-          data-pz-ad-slot="1"
-          style={{ position: "absolute", inset: 0, zIndex: 3, overflow: "visible" }}
-        />
       </div>
     </div>
   );

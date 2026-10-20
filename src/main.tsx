@@ -42,23 +42,6 @@ if (!lite) {
   }
 }
 
-whenQuietEnds(() => {
-  const inject = (src: string, attrs?: Record<string, string>) => {
-    if (document.querySelector(`script[data-pz-deferred="${src}"]`)) return;
-    const s = document.createElement("script");
-    s.async = true;
-    s.src = src;
-    s.dataset.pzDeferred = src;
-    if (attrs) {
-      for (const [k, v] of Object.entries(attrs)) s.setAttribute(k, v);
-    }
-    document.head.appendChild(s);
-  };
-  inject("https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6640595376330309", {
-    crossorigin: "anonymous",
-  });
-  inject("https://a.magsrv.com/ad-provider.js");
-});
 
 function applyStoredSettings() {
   const get = (k: string) => localStorage.getItem(k);

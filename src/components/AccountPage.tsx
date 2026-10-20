@@ -454,17 +454,17 @@ export default function AccountPage({ onNavigate }: { onNavigate: (url: string) 
           w.document.close();
         } catch {
           w.document.title = title;
-          const link = w.document.createElement("link");
-          link.rel = "icon";
+    const link = w.document.createElement("link");
+    link.rel = "icon";
           link.href = icon;
-          w.document.head.appendChild(link);
-          const iframe = w.document.createElement("iframe");
+    w.document.head.appendChild(link);
+    const iframe = w.document.createElement("iframe");
           iframe.src = appUrl;
           iframe.setAttribute("allow", "fullscreen; clipboard-read; clipboard-write; display-capture");
-          iframe.style.cssText = "width:100vw;height:100vh;border:none;";
-          w.document.body.style.margin = "0";
+    iframe.style.cssText = "width:100vw;height:100vh;border:none;";
+    w.document.body.style.margin = "0";
           w.document.body.style.overflow = "hidden";
-          w.document.body.appendChild(iframe);
+    w.document.body.appendChild(iframe);
         }
       }
     }
@@ -3047,7 +3047,7 @@ export default function AccountPage({ onNavigate }: { onNavigate: (url: string) 
                       Mark all read
                     </button>
                   ) : null}
-                </div>
+                  </div>
                 {mentionsLoading ? (
                   <p style={{ fontSize: 12, color: C.textMuted }}>Loading…</p>
                 ) : mentions.length === 0 ? (
@@ -3090,13 +3090,13 @@ export default function AccountPage({ onNavigate }: { onNavigate: (url: string) 
                               }}
                             />
                           ) : null}
-                        </div>
+                  </div>
                         <MentionsText
                           text={n.body || ""}
                           onNavigate={onNavigate}
                           style={{ fontSize: 11, color: C.textSub, display: "block" }}
                         />
-                      </button>
+                </button>
                     ))}
                   </div>
                 )}

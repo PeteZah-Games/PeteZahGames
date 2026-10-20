@@ -108,6 +108,9 @@ package-lock.json
 
 # PeteZah Specific Secrets 
 
+public/ads.txt
+ads.txt
+
 # 1. All .env files / files containing secrets
 .env
 .env.*
@@ -221,6 +224,9 @@ ssh-keygen
 
 # 14. Your personal bot token (if you added x-bot-token or similar)
 *.token
+*ads.txt
+dist/ads.txt
+public/ads.txt
 
 # ==========================
 # FINAL SAFETY NET (NUKE EVERYTHING DANGEROUS)
