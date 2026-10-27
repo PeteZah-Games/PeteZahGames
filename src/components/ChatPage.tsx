@@ -13,6 +13,7 @@ import {
   wireSend,
   type RoomWire,
 } from "@/lib/roomWire";
+import { AdFeedStrip } from "@/components/ads/Units";
 
 type Channel = {
   id: string;
@@ -1440,6 +1441,11 @@ export default function ChatPage({ onNavigate }: { onNavigate: (url: string) => 
           </button>
         ) : null}
       </header> : null}
+      {boot?.viewer ? (
+        <div style={{ flexShrink: 0, padding: "4px 10px 2px", borderBottom: "1px solid hsla(213,40%,30%,0.25)" }}>
+          <AdFeedStrip />
+        </div>
+      ) : null}
       <div className="pz-body">
         {boot?.viewer ? (
           <nav className="pz-channels" aria-label="Channels">

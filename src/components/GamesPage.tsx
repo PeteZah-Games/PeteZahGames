@@ -2,8 +2,13 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Dices, Plus, Star, MoreVertical, X, Trash2, Share2, Copy, Check, Upload, ChevronLeft, ChevronRight, RefreshCw, Crown, Pencil } from "lucide-react";
 import { requestSyncSoon } from "@/lib/settingsSync";
+<<<<<<< HEAD
 import { AdResponsiveBanner, AdNativeBar, AdNativeBarAlt } from "@/components/ads/Adsterra";
 import { armAdAudio } from "@/lib/exoclick";
+=======
+import { armAdAudio } from "@/lib/adGate";
+import { AdFeedStrip, AdPageStack } from "@/components/ads/Units";
+>>>>>>> e03cf675 (updates updates (games and chat fixes))
 import { originHttpHost } from "@/lib/siteOrigin";
 import { resolveGameViaHref } from "@/lib/proxyTarget";
 import { normalizeGameVia, type GameVia } from "@/lib/mochiPath";
@@ -1062,21 +1067,31 @@ export default function GamesPage({ onNavigate, adminEdit = false, initialQuery 
               )}
               <div className="grid gap-3 cat-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}>
                 {visible.map((game, i) => (
-                  <GameCard
-                    key={game.id}
-                    game={game}
-                    isFav={favorites.includes(game.id)}
-                    priority={i < 12}
-                    index={i}
-                    onPlay={() => handlePlay(game)}
-                    onOptions={() => setOptionsGame(game)}
-                  />
+                  <div key={game.id} style={{ display: "contents" }}>
+                    <GameCard
+                      game={game}
+                      isFav={favorites.includes(game.id)}
+                      priority={i < 12}
+                      index={i}
+                      onPlay={() => handlePlay(game)}
+                      onOptions={() => setOptionsGame(game)}
+                    />
+                    {(i + 1) % 12 === 0 && i + 1 < visible.length ? (
+                      <div style={{ gridColumn: "1 / -1" }}>
+                        <AdFeedStrip />
+                      </div>
+                    ) : null}
+                  </div>
                 ))}
               </div>
               <div className="pt-4 pb-2">
+<<<<<<< HEAD
                 <AdResponsiveBanner />
                 <AdNativeBar />
                 <AdNativeBarAlt />
+=======
+                <AdPageStack dense />
+>>>>>>> e03cf675 (updates updates (games and chat fixes))
               </div>
               {hasMore && (
                 <div ref={loadMoreRef} className="flex justify-center py-8">

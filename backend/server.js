@@ -115,6 +115,14 @@ import {
   adsVastXmlHandler,
   adsShownHandler,
 } from './api/ads.js';
+import {
+  premiumAdminLimiter,
+  premiumStatusLimiter,
+  adsStatusHandler,
+  listPremiumHandler,
+  createPremiumHandler,
+  deletePremiumHandler,
+} from './api/premium.js';
 import { adReportsLimiter, getAdminAdReportsHandler } from './api/ad-reports.js';
 import {
   aiGrantsLimiter,
@@ -442,6 +450,10 @@ app.post('/api/ads/gate', adsGateLimiter, adsGateHandler);
 app.post('/api/ads/shown', adsGateLimiter, adsShownHandler);
 app.get('/api/ads/vast', adsVastLimiter, adsVastHandler);
 app.get('/api/ads/vast.xml', adsVastLimiter, adsVastXmlHandler);
+app.get('/api/ads/status', premiumStatusLimiter, adsStatusHandler);
+app.get('/api/admin/premium', premiumAdminLimiter, listPremiumHandler);
+app.post('/api/admin/premium', premiumAdminLimiter, createPremiumHandler);
+app.delete('/api/admin/premium/:id', premiumAdminLimiter, deletePremiumHandler);
 app.get('/api/admin/ad-reports', adReportsLimiter, getAdminAdReportsHandler);
 app.get('/api/admin/ai-grants', aiGrantsLimiter, listAiGrantsHandler);
 app.post('/api/admin/ai-grants', aiGrantsLimiter, createAiGrantHandler);

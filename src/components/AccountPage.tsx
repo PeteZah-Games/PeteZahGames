@@ -26,6 +26,7 @@ import { applyVpnRegion } from "@/lib/vpn";
 import { themeById, applyBrowserIdentity } from "@/lib/siteThemes";
 import { AppearanceSettings, BehaviorSettings, ProxySettings, ShortcutsSettings } from "./SettingsPanels";
 import { AdReportsPanel } from "./AdReportsPanel";
+import { PremiumPanel } from "./PremiumPanel";
 import { CustomAiPanel } from "./CustomAiPanel";
 import { createPortal } from "react-dom";
 
@@ -492,7 +493,7 @@ export default function AccountPage({ onNavigate }: { onNavigate: (url: string) 
   const [revealMap, setRevealMap] = useState<Record<string, string>>({});
   const [revealBusy, setRevealBusy] = useState("");
   const [revealTrunc, setRevealTrunc] = useState(false);
-  const [adminTab, setAdminTab] = useState<"users" | "staff" | "rarity">("users");
+  const [adminTab, setAdminTab] = useState<"users" | "staff" | "rarity" | "premium">("users");
   const [rarityBoard, setRarityBoard] = useState<{
     rank: number;
     userId: string;
@@ -3492,25 +3493,27 @@ export default function AccountPage({ onNavigate }: { onNavigate: (url: string) 
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "3px" }}>
                   <h2 style={{ fontSize: "15px", fontWeight: 700, color: C.text, margin: 0 }}>Users</h2>
                   <span style={{ fontSize: "10px", fontWeight: 600, padding: "3px 8px", borderRadius: "6px", background: `${C.accentDim}40`, border: `1px solid ${C.borderFocus}`, color: C.accent }}>
-                    {adminTab === "staff" ? `${staffList.length} team` : adminTab === "rarity" ? `Top ${rarityBoard.length}` : adminSearchActive ? `${adminUsers.length} results` : `${adminTotal} users`}
+                    {adminTab === "staff" ? `${staffList.length} team` : adminTab === "rarity" ? `Top ${rarityBoard.length}` : adminTab === "premium" ? "Ad-free" : adminSearchActive ? `${adminUsers.length} results` : `${adminTotal} users`}
                   </span>
                 </div>
                 <p style={{ fontSize: "11px", color: C.textSub, margin: "0 0 10px" }}>
                   {isOwner ? "Owner — manage team roles and users" : "Manage users and moderate content"}
                 </p>
-                <div style={{ display: "flex", gap: "6px", marginBottom: "14px" }}>
-                  {(["users", "staff", "rarity"] as const).map(tab => (
+                <div style={{ display: "flex", gap: "6px", marginBottom: "14px", flexWrap: "wrap" }}>
+                  {(["users", "staff", "rarity", "premium"] as const).map(tab => (
                     <button key={tab} onClick={() => setAdminTab(tab)} style={{
                       padding: "6px 12px", borderRadius: "7px", fontSize: "11px", fontWeight: 600, cursor: "pointer",
                       border: `1px solid ${adminTab === tab ? C.borderFocus : C.border}`,
                       background: adminTab === tab ? C.accentDim : C.surface,
                       color: adminTab === tab ? C.text : C.textMuted,
                     }}>
-                      {tab === "users" ? "Users" : tab === "staff" ? "Staff" : "Rarest"}
+                      {tab === "users" ? "Users" : tab === "staff" ? "Staff" : tab === "rarity" ? "Rarest" : "Premium"}
                     </button>
                   ))}
                 </div>
-                {adminTab === "rarity" ? (
+                {adminTab === "premium" ? (
+                  <PremiumPanel C={C} />
+                ) : adminTab === "rarity" ? (
                   rarityLoading ? (
                     <div style={{ display: "flex", justifyContent: "center", padding: "40px" }}>
                       <Loader2 size={18} className="animate-spin" style={{ color: C.accent }} />

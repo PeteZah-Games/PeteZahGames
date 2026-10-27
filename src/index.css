@@ -422,6 +422,19 @@ html, body {
   display: none;
 }
 
+html[data-pz-adfree="1"] [data-ad],
+html[data-pz-adfree="1"] [data-pz-ad-slot],
+html[data-pz-adfree="1"] [data-ad-slot],
+html[data-pz-adfree="1"] body > ins.adsbygoogle,
+html[data-pz-adfree="1"] body > .google-auto-placed,
+html[data-pz-adfree="1"] body > #google_vignette,
+html[data-pz-adfree="1"] body > div[id^="aswift_"],
+html[data-pz-adfree="1"] body > iframe[id^="google_ads_iframe"],
+html[data-pz-adfree="1"] body > iframe[name^="google_ads_iframe"] {
+  display: none !important;
+  pointer-events: none !important;
+}
+
 body > ins.adsbygoogle,
 body > .google-auto-placed,
 body > #google_vignette,

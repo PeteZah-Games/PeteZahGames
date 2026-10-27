@@ -10,7 +10,11 @@ import { requestSyncSoon } from "@/lib/settingsSync";
 import { hrefs } from "@/lib/uiMarks";
 import { trackAchievementEvent } from "@/lib/achievementEvents";
 import { CoverImg } from "@/lib/mediaCover";
+<<<<<<< HEAD
 import { AdResponsiveBanner, AdNativeBarAlt } from "@/components/ads/Adsterra";
+=======
+import { AdPageStack } from "@/components/ads/Units";
+>>>>>>> e03cf675 (updates updates (games and chat fixes))
 import { progressPollMs } from "@/lib/liteDevice";
 
 interface Track {
@@ -1311,8 +1315,12 @@ export default function MusicPage({
 
             {/* Ad sits below all shelves / lists — scroll to reach */}
             <div style={{ padding: "28px 22px 48px", minHeight: 140 }}>
+<<<<<<< HEAD
               <AdResponsiveBanner exo={false} />
               <AdNativeBarAlt />
+=======
+              <AdPageStack />
+>>>>>>> e03cf675 (updates updates (games and chat fixes))
               <p style={{ margin: "10px 0 0", fontSize: 10, color: S.textMuted, lineHeight: 1.4 }}>
                 Playback is requested through official SoundCloud and YouTube embed/API surfaces where available.
                 Metadata may come from third-party catalog APIs (including iTunes Search). Licensing, geo rules,

@@ -2,8 +2,13 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Plus, Star, MoreVertical, X, Trash2, Share2, Copy, Check, Upload } from "lucide-react";
 import { requestSyncSoon } from "@/lib/settingsSync";
+<<<<<<< HEAD
 import { AdResponsiveBanner, AdNativeBar, AdNativeBarAlt } from "@/components/ads/Adsterra";
 import { armAdAudio } from "@/lib/exoclick";
+=======
+import { AdFeedStrip, AdPageStack } from "@/components/ads/Units";
+import { armAdAudio } from "@/lib/adGate";
+>>>>>>> e03cf675 (updates updates (games and chat fixes))
 import { hrefs, marks } from "@/lib/uiMarks";
 import ObfuscatedText from "./ObfuscatedText";
 
@@ -319,14 +324,25 @@ export default function AppsPage({ onNavigate }: AppsPageProps) {
             <>
               <div className="grid gap-3 apps-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}>
                 {filtered.map((app, i) => (
-                  <AppCard key={app.id} app={app} isFav={favorites.includes(app.id)} index={i}
-                    onOpen={() => handleOpen(app)} onOptions={() => setOptionsApp(app)} />
+                  <div key={app.id} style={{ display: "contents" }}>
+                    <AppCard app={app} isFav={favorites.includes(app.id)} index={i}
+                      onOpen={() => handleOpen(app)} onOptions={() => setOptionsApp(app)} />
+                    {(i + 1) % 10 === 0 && i + 1 < filtered.length ? (
+                      <div style={{ gridColumn: "1 / -1" }}>
+                        <AdFeedStrip />
+                      </div>
+                    ) : null}
+                  </div>
                 ))}
               </div>
               <div className="pt-4 pb-8">
+<<<<<<< HEAD
                 <AdResponsiveBanner />
                 <AdNativeBar />
                 <AdNativeBarAlt />
+=======
+                <AdPageStack dense />
+>>>>>>> e03cf675 (updates updates (games and chat fixes))
               </div>
             </>
           )}

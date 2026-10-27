@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ExoClickBanner } from "@/components/ads/ExoClick";
+import { isAdFreeClient, useAdFreeGate } from "@/lib/adFree";
 
 const KEY_728 = "5aed292251276d82b269fc3b8ecc354d";
 const KEY_320 = "fee48967b89db2d0bd32a6c670ffa744";
@@ -86,6 +87,8 @@ const slotShell: CSSProperties = {
 };
 
 export function AdBanner728({ className = "" }: { className?: string }) {
+  const blocked = useAdFreeGate();
+  if (blocked) return null;
   return (
     <div className={className} style={{ ...slotShell, minHeight: 110 }} data-ad-slot="728">
       <AdLabel />
@@ -95,6 +98,8 @@ export function AdBanner728({ className = "" }: { className?: string }) {
 }
 
 export function AdBanner320({ className = "" }: { className?: string }) {
+  const blocked = useAdFreeGate();
+  if (blocked) return null;
   return (
     <div className={className} style={{ ...slotShell, minHeight: 70 }} data-ad-slot="320">
       <AdLabel />
@@ -111,6 +116,7 @@ export function AdResponsiveBanner({
   /** When false, only Adsterra banners are shown (no ExoClick). */
   exo?: boolean;
 }) {
+  const blocked = useAdFreeGate();
   const [mobile, setMobile] = useState(() =>
     typeof window !== "undefined" ? window.matchMedia("(max-width: 720px)").matches : false
   );
@@ -121,6 +127,7 @@ export function AdResponsiveBanner({
     mq.addEventListener?.("change", onChange);
     return () => mq.removeEventListener?.("change", onChange);
   }, []);
+  if (blocked) return null;
   return (
     <div className={className} style={{ width: "100%" }}>
       {mobile ? <AdBanner320 /> : <AdBanner728 />}
@@ -130,10 +137,12 @@ export function AdResponsiveBanner({
 }
 
 export function AdNativeBar() {
+  const blocked = useAdFreeGate();
   const id = useId().replace(/:/g, "");
   const containerId = `container-${NATIVE_ID}`;
   const mounted = useRef(false);
   useEffect(() => {
+    if (blocked) return;
     if (mounted.current) return;
     mounted.current = true;
     if (document.querySelector(`script[data-pz-native="${NATIVE_ID}"]`)) return;
@@ -143,7 +152,8 @@ export function AdNativeBar() {
     script.dataset.pzNative = NATIVE_ID;
     script.src = NATIVE_SRC;
     document.body.appendChild(script);
-  }, []);
+  }, [blocked]);
+  if (blocked) return null;
   return (
     <div style={{ width: "100%", padding: "4px 0 12px" }} data-ad-slot={id}>
       <AdLabel />
@@ -163,10 +173,12 @@ export function AdNativeBar() {
 
 /** Compact native unit for content pages (games/apps/media) — not homepage. */
 export function AdNativeBarAlt() {
+  const blocked = useAdFreeGate();
   const id = useId().replace(/:/g, "");
   const containerId = `container-${NATIVE2_ID}`;
   const mounted = useRef(false);
   useEffect(() => {
+    if (blocked) return;
     if (mounted.current) return;
     mounted.current = true;
     if (document.querySelector(`script[data-pz-native="${NATIVE2_ID}"]`)) return;
@@ -176,7 +188,8 @@ export function AdNativeBarAlt() {
     script.dataset.pzNative = NATIVE2_ID;
     script.src = NATIVE2_SRC;
     document.body.appendChild(script);
-  }, []);
+  }, [blocked]);
+  if (blocked) return null;
   return (
     <div style={{ width: "100%", padding: "2px 0 10px" }} data-ad-slot={id}>
       <AdLabel />
@@ -322,6 +335,7 @@ function teardownSandboxedAd(
  * top page after the interstitial ends.
  */
 export function playAdsterraLoadingAd(ms = 3600): Promise<"shown" | "skipped"> {
+  if (isAdFreeClient()) return Promise.resolve("skipped");
   return new Promise((resolve) => {
     let settled = false;
     scrubAdsterraLoadingArtifacts();
@@ -408,6 +422,7 @@ export function playLoaderNetworkAdsBehind(
   hostId: string,
   ms = 45000
 ): Promise<"shown" | "skipped"> {
+  if (isAdFreeClient()) return Promise.resolve("skipped");
   return new Promise((resolve) => {
     let settled = false;
     const host = document.getElementById(hostId) as HTMLDivElement | null;

@@ -423,4 +423,22 @@ try {
   console.error('chat_faces migration error:', e);
 }
 
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS premium_ad_free (
+      id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL CHECK(kind IN ('user','ip')),
+      value TEXT NOT NULL,
+      label TEXT NOT NULL DEFAULT '',
+      note TEXT NOT NULL DEFAULT '',
+      created_by TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      UNIQUE(kind, value)
+    );
+    CREATE INDEX IF NOT EXISTS idx_premium_ad_free_kind_value ON premium_ad_free(kind, value);
+  `);
+} catch (e) {
+  console.error('premium_ad_free migration error:', e);
+}
+
 export default db;

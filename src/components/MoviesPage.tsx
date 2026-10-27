@@ -8,7 +8,11 @@ import { CoverImg } from "@/lib/mediaCover";
 import { pxEncode, pxReady } from "@/lib/px";
 import { applyVpnRegion, isSignedIn } from "@/lib/vpn";
 import { setPendingAuth } from "@/lib/authPending";
+<<<<<<< HEAD
 import { AdResponsiveBanner, AdNativeBarAlt } from "@/components/ads/Adsterra";
+=======
+import { AdFeedStrip, AdPageStack } from "@/components/ads/Units";
+>>>>>>> e03cf675 (updates updates (games and chat fixes))
 import { sealPlayerPopups, setPopupLock } from "@/lib/sealPlayerPopups";
 import { sealPollMs } from "@/lib/liteDevice";
 
@@ -1490,8 +1494,12 @@ export default function MoviesPage({
                 ) : (
                   <>
                     <div style={{ padding: "0 0 12px" }}>
+<<<<<<< HEAD
                       <AdResponsiveBanner />
                       <AdNativeBarAlt />
+=======
+                      <AdFeedStrip />
+>>>>>>> e03cf675 (updates updates (games and chat fixes))
                     </div>
                     <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8, scrollbarWidth: "none" }}>
                       {shelfCatalog.map((item) => {
@@ -1514,6 +1522,9 @@ export default function MoviesPage({
               </div>
             </>
           )}
+          <div style={{ padding: "16px 0 4px" }}>
+            <AdPageStack />
+          </div>
           <p style={{
             margin: "28px 0 8px",
             fontSize: 10,

@@ -4,6 +4,7 @@ import db from '../db.js';
 import { getClientIP } from '../utils/client-ip.js';
 import { toIPv4 } from '../middleware/security.js';
 import { getAppPepper } from '../utils/secrets.js';
+import { isAdFreeRequest } from './premium.js';
 
 const WINDOW_MS = 5 * 60 * 1000;
 const MAX_PER_WINDOW = 2;
@@ -97,6 +98,10 @@ export async function adsGateHandler(req, res) {
     return res.json({ show: false, reason: 'disabled' });
   }
 
+  if (isAdFreeRequest(req)) {
+    return res.json({ show: false, reason: 'premium' });
+  }
+
   const context = typeof req.body?.context === 'string'
     ? req.body.context.trim().toLowerCase()
     : '';
@@ -131,7 +136,7 @@ export async function adsGateHandler(req, res) {
 }
 
 export async function adsShownHandler(req, res) {
-  if (!isVideoAdsEnabled()) {
+  if (!isVideoAdsEnabled() || isAdFreeRequest(req)) {
     return res.json({ ok: true });
   }
   prune();
@@ -147,16 +152,16 @@ export async function adsShownHandler(req, res) {
   return res.json({ ok: true });
 }
 
-export async function adsVastHandler(_req, res) {
-  if (!isVideoAdsEnabled()) {
+export async function adsVastHandler(req, res) {
+  if (!isVideoAdsEnabled() || isAdFreeRequest(req)) {
     return res.json({ tagUrl: '', mediaUrl: '', clickThrough: '' });
   }
   res.setHeader('Cache-Control', 'no-store');
   return res.json({ tagUrl: vastUrl(), mediaUrl: '', clickThrough: '' });
 }
 
-export async function adsVastXmlHandler(_req, res) {
-  if (!isVideoAdsEnabled()) {
+export async function adsVastXmlHandler(req, res) {
+  if (!isVideoAdsEnabled() || isAdFreeRequest(req)) {
     return res.status(204).end();
   }
   try {
