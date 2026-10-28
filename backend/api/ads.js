@@ -136,7 +136,11 @@ export async function adsGateHandler(req, res) {
 }
 
 export async function adsShownHandler(req, res) {
+<<<<<<< HEAD
   if (!isVideoAdsEnabled() || isAdFreeRequest(req)) {
+=======
+  if (!isAdsEnabled() || isAdFreeRequest(req)) {
+>>>>>>> 00ed85e5 (updates updates (games and chat fixes))
     return res.json({ ok: true });
   }
   prune();

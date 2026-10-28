@@ -3,9 +3,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Search, Plus, Star, MoreVertical, X, Trash2, Share2, Copy, Check, Upload } from "lucide-react";
 import { requestSyncSoon } from "@/lib/settingsSync";
 <<<<<<< HEAD
+<<<<<<< HEAD
 import { AdResponsiveBanner, AdNativeBar, AdNativeBarAlt } from "@/components/ads/Adsterra";
 import { armAdAudio } from "@/lib/exoclick";
 =======
+=======
+>>>>>>> 00ed85e5 (updates updates (games and chat fixes))
 import { AdFeedStrip, AdPageStack } from "@/components/ads/Units";
 import { armAdAudio } from "@/lib/adGate";
 >>>>>>> e03cf675 (updates updates (games and chat fixes))
@@ -335,7 +338,13 @@ export default function AppsPage({ onNavigate }: AppsPageProps) {
                   </div>
                 ))}
               </div>
+              {filtered.length >= 8 ? (
+                <div className="pt-3 pb-1">
+                  <AdFeedStrip />
+                </div>
+              ) : null}
               <div className="pt-4 pb-8">
+<<<<<<< HEAD
 <<<<<<< HEAD
                 <AdResponsiveBanner />
                 <AdNativeBar />
@@ -343,6 +352,9 @@ export default function AppsPage({ onNavigate }: AppsPageProps) {
 =======
                 <AdPageStack dense />
 >>>>>>> e03cf675 (updates updates (games and chat fixes))
+=======
+                <AdPageStack dense />
+>>>>>>> 00ed85e5 (updates updates (games and chat fixes))
               </div>
             </>
           )}

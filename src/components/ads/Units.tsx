@@ -80,7 +80,10 @@ function markGoogle(opts?: { hideUi?: boolean }) {
   try {
     localStorage.setItem(GOOGLE_KEY, String(Date.now()));
   } catch {}
+<<<<<<< HEAD
   // hideUi=false while the one allowed interstitial is on screen (CSS would kill it otherwise).
+=======
+>>>>>>> 00ed85e5 (updates updates (games and chat fixes))
   if (opts?.hideUi !== false) {
     try {
       document.documentElement.dataset.pzGCool = "1";
@@ -196,6 +199,7 @@ function watchGoogleBreakCascade() {
 
 function ensureGoogle() {
   if (typeof document === "undefined") return;
+  if (isAdFreeClient()) return;
   if (!document.querySelector(`script[data-pz-gnet="1"]`)) {
     const s = document.createElement("script");
     s.async = true;
@@ -206,14 +210,26 @@ function ensureGoogle() {
   }
 }
 
+<<<<<<< HEAD
 /** Allow Google (reward OR vignette, not both) briefly; shared 5‑min cooldown after. */
+=======
+/** Combined rewarded+vignette: at most one Google break / 5 min / person. */
+>>>>>>> 00ed85e5 (updates updates (games and chat fixes))
 function armGoogleBreak() {
+  if (isAdFreeClient()) return false;
   if (!googleDue()) return false;
   try {
     sessionStorage.setItem(GOOGLE_ARMING_KEY, "1");
   } catch {}
   ensureGoogle();
+<<<<<<< HEAD
   // Don't mark yet — mark when one actually shows (or when the arm window ends).
+=======
+  markGoogle({ hideUi: false });
+  try {
+    document.documentElement.dataset.pzGShowing = "1";
+  } catch {}
+>>>>>>> 00ed85e5 (updates updates (games and chat fixes))
   pauseGoogle(false);
   if (googleArmTimer) window.clearTimeout(googleArmTimer);
   googleArmTimer = window.setTimeout(() => {
@@ -221,10 +237,26 @@ function armGoogleBreak() {
     markGoogle();
     try {
       sessionStorage.removeItem(GOOGLE_ARMING_KEY);
+      delete document.documentElement.dataset.pzGShowing;
     } catch {}
     googleArmTimer = null;
   }, 18_000);
   return true;
+}
+
+/** Closing a partner banner must not free a Google vignette/reward. */
+function sealAfterDismiss() {
+  pauseGoogle(true);
+  markGoogle();
+  if (googleArmTimer) {
+    window.clearTimeout(googleArmTimer);
+    googleArmTimer = null;
+  }
+  try {
+    sessionStorage.removeItem(GOOGLE_ARMING_KEY);
+    delete document.documentElement.dataset.pzGShowing;
+  } catch {}
+  scrubPlayOverlays();
 }
 
 function hideGoogleShell(el: Element) {
@@ -308,6 +340,10 @@ function stopPlayScrub() {
 }
 
 function enablePartnerAds() {
+  if (isAdFreeClient()) {
+    disablePartnerAds();
+    return;
+  }
   withApi((api) => {
     try {
       api.setAdsEnabled?.(true);
@@ -325,6 +361,7 @@ function disablePartnerAds() {
 
 export function bootSlotNet() {
   void refreshAdFreeStatus().then((on) => {
+<<<<<<< HEAD
     if (on) return;
     ensureNet();
     ensureGoogle();
@@ -333,6 +370,16 @@ export function bootSlotNet() {
   syncCoolAttr();
   watchGoogleBreakCascade();
   // Start paused until syncSurfaceAds decides; avoids homepage flood on boot.
+=======
+    if (on) {
+      pauseGoogle(true);
+      disablePartnerAds();
+      return;
+    }
+    ensureNet();
+  });
+  // Never load googlesyndication on boot — only when arming a due earn break.
+>>>>>>> 00ed85e5 (updates updates (games and chat fixes))
   pauseGoogle(true);
 }
 
@@ -347,6 +394,7 @@ export function isQuietSurface(url: string) {
   if (u.startsWith("petezah://extensions")) return true;
   if (u.startsWith("petezah://tools")) return true;
   if (u.startsWith("petezah://trending")) return true;
+<<<<<<< HEAD
   // Games catalog, AI, chat are earn surfaces (not quiet). Gameviewer/proxy handled separately.
   return false;
 }
@@ -358,11 +406,22 @@ export function isEarnSurface(url: string) {
   if (u.startsWith(hrefs.mu()) || u.startsWith(hrefs.mo())) return true;
   if (u.startsWith("petezah://changelog")) return true;
   if (u.startsWith("petezah://vm")) return true;
+=======
+>>>>>>> 00ed85e5 (updates updates (games and chat fixes))
   return false;
 }
 
 export function isPlaySurface(url: string, framed = false) {
-  return isGvHref(String(url || "")) || !!framed;
+  return isImmersiveSurface(String(url || ""), !!framed);
+}
+
+/** Viewer / proxied browsing — zero ads (Lightspeed-safe: no third-party ad nets). */
+export function isImmersiveSurface(url: string, framed = false) {
+  const u = String(url || "");
+  if (isGvHref(u)) return true;
+  if (framed) return true;
+  if (/^https?:\/\//i.test(u)) return true;
+  return false;
 }
 
 /** Gameviewer OR active proxy — zero overlay ads. */
@@ -379,12 +438,35 @@ export function isHomeSurface(url: string) {
   return !u || u === "about:blank" || u.startsWith("petezah://newtab") || u.startsWith("petezah://trending");
 }
 
+/** Catalog / media shelves — denser non-intrusive inventory. */
 export function isSoftEarn(url: string) {
   const u = String(url || "");
+<<<<<<< HEAD
   if (isGHref(u)) return true;
   if (u.startsWith("petezah://apps")) return true;
   if (u.startsWith(hrefs.mu()) || u.startsWith(hrefs.mo())) return true;
   if (u.startsWith("petezah://changelog")) return true;
+=======
+  if (isGHref(u) && !isGvHref(u)) return true;
+  if (u.startsWith("petezah://apps")) return true;
+  if (u.startsWith(hrefs.mu()) || u.startsWith(hrefs.mo())) return true;
+  if (u.startsWith("petezah://changelog")) return true;
+  if (u.startsWith("petezah://vm")) return true;
+  if (u.startsWith("petezah://ai")) return true;
+  if (u.startsWith("petezah://chat")) return true;
+  return false;
+}
+
+/** Closable bottom sticky on earn catalogs (never viewer/proxy/home). */
+export function isStickySurface(url: string, framed = false) {
+  if (isImmersiveSurface(url, framed) || isHomeSurface(url)) return false;
+  return isSoftEarn(url);
+}
+
+/** Desktop side rails: AI, chat, and VM only. */
+export function isRailSurface(url: string) {
+  const u = String(url || "").toLowerCase();
+>>>>>>> 00ed85e5 (updates updates (games and chat fixes))
   if (u.startsWith("petezah://ai")) return true;
   if (u.startsWith("petezah://chat")) return true;
   if (u.startsWith("petezah://vm")) return true;
@@ -416,28 +498,47 @@ export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean; framed?
     } catch {}
     return { sticky: false, google: false };
   }
+<<<<<<< HEAD
   ensureNet();
   ensureGoogle();
   syncCoolAttr();
   watchGoogleBreakCascade();
+=======
+
+>>>>>>> 00ed85e5 (updates updates (games and chat fixes))
   const home = isHomeSurface(url);
   const quiet = isQuietSurface(url);
   const immersive = isImmersiveSurface(url, !!opts?.framed);
   try {
+<<<<<<< HEAD
     document.documentElement.dataset.pzHomeAds = home || isGHref(url) ? "1" : "0";
     // Quiet overlay mode for gameviewer AND proxy.
+=======
+    document.documentElement.dataset.pzHomeAds = home ? "1" : "0";
+>>>>>>> 00ed85e5 (updates updates (games and chat fixes))
     document.documentElement.dataset.pzPlayAds = immersive ? "1" : "0";
   } catch {}
 
   if (immersive) {
+<<<<<<< HEAD
     // Gameviewer + proxy: zero ads.
     startPlayScrub();
     pauseGoogle(true);
     disablePartnerAds();
+=======
+    // Viewer + proxy gameplay: never load googlesyndication; no sticky/rails.
+    // Same-origin loader slots may still fill during the pre-entry break only.
+    startPlayScrub();
+    pauseGoogle(true);
+>>>>>>> 00ed85e5 (updates updates (games and chat fixes))
     return { sticky: false, google: false };
   }
 
   stopPlayScrub();
+<<<<<<< HEAD
+=======
+  ensureNet();
+>>>>>>> 00ed85e5 (updates updates (games and chat fixes))
   enablePartnerAds();
 
   if (quiet || home) {
@@ -446,14 +547,20 @@ export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean; framed?
   }
 
   const earn = isSoftEarn(url);
+<<<<<<< HEAD
   // Soft earn: closable sticky + page units; Google interstitial at most once / 5 min combined.
+=======
+>>>>>>> 00ed85e5 (updates updates (games and chat fixes))
   if (earn && googleDue()) {
     armGoogleBreak();
     return { sticky: true, google: true };
   }
 
   pauseGoogle(true);
+<<<<<<< HEAD
   hideGoogleInterstitials();
+=======
+>>>>>>> 00ed85e5 (updates updates (games and chat fixes))
   return { sticky: earn, google: false };
 }
 
@@ -531,10 +638,17 @@ export function StickyAnchor({ enabled = true }: { enabled?: boolean }) {
   const blocked = useAdFreeGate();
 
   useEffect(() => {
+<<<<<<< HEAD
     if (blocked) return;
     ensureNet();
     enablePartnerAds();
   }, [blocked]);
+=======
+    if (blocked || !enabled) return;
+    ensureNet();
+    enablePartnerAds();
+  }, [blocked, enabled]);
+>>>>>>> 00ed85e5 (updates updates (games and chat fixes))
 
   useEffect(() => {
     if (!enabled) setClosed(false);
@@ -571,8 +685,12 @@ export function StickyAnchor({ enabled = true }: { enabled?: boolean }) {
           aria-label="Close ad"
           onClick={() => {
             setClosed(true);
+<<<<<<< HEAD
             // Closing bottom/sticky must not cascade into Google vignette/reward.
             onOverlayDismissed();
+=======
+            sealAfterDismiss();
+>>>>>>> 00ed85e5 (updates updates (games and chat fixes))
           }}
           style={{
             position: "absolute",
@@ -711,7 +829,11 @@ export function SideRails({ enabled = true }: { enabled?: boolean }) {
   const close = () => {
     markRailsClosed();
     setClosed(true);
+<<<<<<< HEAD
     onOverlayDismissed();
+=======
+    sealAfterDismiss();
+>>>>>>> 00ed85e5 (updates updates (games and chat fixes))
   };
 
   return (
@@ -730,6 +852,8 @@ export function AdResponsiveBanner({
   exo?: boolean;
   dense?: boolean;
 }) {
+  const blocked = useAdFreeGate();
+  if (blocked) return null;
   return (
     <div className={className} style={shell} data-pz-ad-slot="1">
       <DesktopOnly>
@@ -748,6 +872,8 @@ export function AdResponsiveBanner({
 }
 
 export function AdNativeBar() {
+  const blocked = useAdFreeGate();
+  if (blocked) return null;
   return (
     <div style={{ ...shell, padding: "4px 0 8px" }} data-pz-ad-slot="1">
       <DesktopOnly>
@@ -758,6 +884,8 @@ export function AdNativeBar() {
 }
 
 export function AdNativeBarAlt() {
+  const blocked = useAdFreeGate();
+  if (blocked) return null;
   return (
     <div style={{ ...shell, padding: "2px 0 8px" }} data-pz-ad-slot="1">
       <DesktopOnly>
@@ -816,7 +944,6 @@ export function LoaderSlots() {
     if (blocked) return;
     ensureNet();
     enablePartnerAds();
-    // Loader break: partner display only — do not arm Google reward/vignette here.
     pauseGoogle(true);
   }, [blocked]);
   if (blocked) return null;
@@ -861,13 +988,12 @@ export function LoaderSlots() {
             lineHeight: 1.25,
           }}
         >
-          Please allow a brief ad break before loading
+          Please allow a brief break before loading
         </p>
         <p style={{ margin: "8px 0 0", fontSize: 12, color: "hsla(210,20%,78%,0.78)" }}>
-          Thanks for supporting PeteZah — your game starts right after this.
+          Thanks for supporting PeteZah — continuing shortly.
         </p>
       </div>
-      {/* One unit only — loader is rate-limited to 1× / 5 min */}
       <Slot name="billboard-1" style={{ width: "min(970px, 100%)", minHeight: 90 }} kv={{ surface: "loader" }} />
       <MobileOnly>
         <Slot name="mobile-unit-1" style={{ width: "min(360px, 100%)", minHeight: 100, marginTop: 12 }} kv={{ surface: "loader" }} />

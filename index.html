@@ -209,6 +209,45 @@ If you want to make the website better, the repository is open source, and my dm
       .education-is-key {
         display: none !important;
       }
+<<<<<<< HEAD
+=======
+      html[data-pz-home-ads="1"] [data-pz-forced-anchor="1"] {
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
+      /* Viewer + proxy: kill Google/partner overlays; keep same-origin loader break usable */
+      html[data-pz-play-ads="1"] body > #goog_rewarded,
+      html[data-pz-play-ads="1"] body > #google_vignette,
+      html[data-pz-play-ads="1"] body > .google-auto-placed,
+      html[data-pz-play-ads="1"] body > ins.adsbygoogle,
+      html[data-pz-play-ads="1"] body > iframe[src*="googlesyndication"],
+      html[data-pz-play-ads="1"] body > iframe[src*="doubleclick"],
+      html[data-pz-play-ads="1"] body > iframe[src*="pagead"],
+      html[data-pz-play-ads="1"] body > [data-pz-scrubbed="1"],
+      html[data-pz-play-ads="1"] [data-pz-forced-anchor="1"],
+      html[data-pz-play-ads="1"] [data-pz-side-rail] {
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
+      html[data-pz-adfree="1"] [data-ad],
+      html[data-pz-adfree="1"] [data-pz-ad-slot],
+      html[data-pz-adfree="1"] [data-ad-slot],
+      html[data-pz-adfree="1"] [data-pz-forced-anchor="1"],
+      html[data-pz-adfree="1"] body > #goog_rewarded,
+      html[data-pz-adfree="1"] body > #google_vignette,
+      html[data-pz-adfree="1"] body > .google-auto-placed,
+      html[data-pz-adfree="1"] body > ins.adsbygoogle {
+        display: none !important;
+        pointer-events: none !important;
+      }
+      html[data-pz-g-cool="1"]:not([data-pz-g-showing="1"]) body > #goog_rewarded,
+      html[data-pz-g-cool="1"]:not([data-pz-g-showing="1"]) body > #google_vignette {
+        display: none !important;
+        pointer-events: none !important;
+      }
+>>>>>>> 00ed85e5 (updates updates (games and chat fixes))
     </style>
   </head>
   <body>

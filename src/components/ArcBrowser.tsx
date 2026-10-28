@@ -27,6 +27,19 @@ import {
 import { hrefs, isGvHref, marks } from "@/lib/uiMarks";
 import { whenQuietEnds } from "@/lib/quietBoot";
 import { setRivetNavigateHandler } from "@/lib/rivet/host";
+<<<<<<< HEAD
+=======
+import {
+  StickyAnchor,
+  SideRails,
+  bootSlotNet,
+  syncSurfaceAds,
+  isHomeSurface,
+  isPlaySurface,
+  isRailSurface,
+  isStickySurface,
+} from "@/components/ads/Units";
+>>>>>>> 00ed85e5 (updates updates (games and chat fixes))
 
 function getPresenceClientId() {
   try {
@@ -91,6 +104,27 @@ export default function ArcBrowser() {
   const zoomOut = useCallback(() => setZoomLevel((z) => Math.max(z - 10, 50)), []);
   const resetZoom = useCallback(() => setZoomLevel(100), []);
 
+<<<<<<< HEAD
+=======
+  const prevUrlRef = useRef(state.focusedTab?.url || "");
+  const [stickyOn, setStickyOn] = useState(false);
+  const [railsOn, setRailsOn] = useState(false);
+
+  useEffect(() => {
+    bootSlotNet();
+  }, []);
+
+  useEffect(() => {
+    const url = state.focusedTab?.url || "";
+    const framed = !!state.focusedTab?.frame;
+    const fromHome = isHomeSurface(prevUrlRef.current);
+    syncSurfaceAds(url, { fromHome, framed });
+    setStickyOn(isStickySurface(url, framed));
+    setRailsOn(isRailSurface(url) && !isPlaySurface(url, framed));
+    prevUrlRef.current = url;
+  }, [state.focusedTab?.url, state.focusedTab?.frame]);
+
+>>>>>>> 00ed85e5 (updates updates (games and chat fixes))
   useEffect(() => {
     setRivetNavigateHandler((url) => {
       state.navigateToUrl(url);

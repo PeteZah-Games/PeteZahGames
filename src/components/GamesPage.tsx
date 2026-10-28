@@ -16,6 +16,7 @@ import { generateGameId } from "@/lib/gameId";
 import { hrefs, marks } from "@/lib/uiMarks";
 import { isLiteDevice } from "@/lib/liteDevice";
 import ObfuscatedText from "./ObfuscatedText";
+import { AdFeedStrip, AdPageStack } from "@/components/ads/Units";
 import {
   trackCatalogFilter,
   trackCatalogSearch,
@@ -1084,7 +1085,13 @@ export default function GamesPage({ onNavigate, adminEdit = false, initialQuery 
                   </div>
                 ))}
               </div>
+              {visible.length >= 8 ? (
+                <div className="pt-3 pb-1">
+                  <AdFeedStrip />
+                </div>
+              ) : null}
               <div className="pt-4 pb-2">
+<<<<<<< HEAD
 <<<<<<< HEAD
                 <AdResponsiveBanner />
                 <AdNativeBar />
@@ -1092,6 +1099,9 @@ export default function GamesPage({ onNavigate, adminEdit = false, initialQuery 
 =======
                 <AdPageStack dense />
 >>>>>>> e03cf675 (updates updates (games and chat fixes))
+=======
+                <AdPageStack dense />
+>>>>>>> 00ed85e5 (updates updates (games and chat fixes))
               </div>
               {hasMore && (
                 <div ref={loadMoreRef} className="flex justify-center py-8">
