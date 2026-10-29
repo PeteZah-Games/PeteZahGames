@@ -11,7 +11,6 @@ import { hrefs } from "@/lib/uiMarks";
 import { trackAchievementEvent } from "@/lib/achievementEvents";
 import { CoverImg } from "@/lib/mediaCover";
 import { AdPageStack } from "@/components/ads/Units";
-import { AdPageStack } from "@/components/ads/Units";
 import { progressPollMs } from "@/lib/liteDevice";
 
 interface Track {
@@ -1312,7 +1311,6 @@ export default function MusicPage({
 
             {/* Ad sits below all shelves / lists — scroll to reach */}
             <div style={{ padding: "28px 22px 48px", minHeight: 140 }}>
-              <AdPageStack />
               <AdPageStack />
               <p style={{ margin: "10px 0 0", fontSize: 10, color: S.textMuted, lineHeight: 1.4 }}>
                 Playback is requested through official SoundCloud and YouTube embed/API surfaces where available.

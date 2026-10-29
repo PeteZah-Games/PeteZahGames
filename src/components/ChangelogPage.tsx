@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Megaphone, ChevronDown, ChevronUp, Heart, Trash2, Send, Loader2, Plus, MessageSquare } from "lucide-react";
 import { AdPageStack } from "@/components/ads/Units";
-import { AdPageStack } from "@/components/ads/Units";
 import { MentionsText } from "@/lib/mentions";
 
 interface Entry { id: string; title: string; content: string; username?: string; created_at: number; likes?: number; }
@@ -340,7 +339,6 @@ export default function ChangelogPage({ onNavigate }: { onNavigate: (url: string
           </motion.div>
         ))}
       </div>
-      <AdPageStack />
       <AdPageStack dense />
     </div>
   );

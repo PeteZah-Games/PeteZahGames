@@ -1086,7 +1086,6 @@ export default function GamesPage({ onNavigate, adminEdit = false, initialQuery 
               ) : null}
               <div className="pt-4 pb-2">
                 <AdPageStack dense />
-                <AdPageStack dense />
               </div>
               {hasMore && (
                 <div ref={loadMoreRef} className="flex justify-center py-8">

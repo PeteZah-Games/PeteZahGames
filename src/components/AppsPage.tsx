@@ -337,7 +337,6 @@ export default function AppsPage({ onNavigate }: AppsPageProps) {
               ) : null}
               <div className="pt-4 pb-8">
                 <AdPageStack dense />
-                <AdPageStack dense />
               </div>
             </>
           )}

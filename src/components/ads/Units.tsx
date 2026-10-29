@@ -466,13 +466,21 @@ export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean; framed?
   }
 
   const earn = isSoftEarn(url);
-  if (earn && googleDue()) {
-    armGoogleBreak();
-    return { sticky: true, google: true };
+  // Earn pages: partner sticky/rails + Google display banners.
+  // Rewarded/vignette stay gated to one combined break / 5 min via arm + cool CSS.
+  if (earn) {
+    ensureGoogle();
+    if (googleDue()) {
+      armGoogleBreak();
+      return { sticky: true, google: true };
+    }
+    // Display/anchor units OK; cool attr keeps reward/vignette suppressed.
+    pauseGoogle(false);
+    return { sticky: true, google: false };
   }
 
   pauseGoogle(true);
-  return { sticky: earn, google: false };
+  return { sticky: false, google: false };
 }
 
 export function Slot({

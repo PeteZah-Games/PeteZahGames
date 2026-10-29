@@ -435,6 +435,7 @@ html[data-pz-adfree="1"] body > iframe[name^="google_ads_iframe"] {
   pointer-events: none !important;
 }
 
+/* Above #root (z-index 10) so bottom Google units are visible on earn pages */
 body > ins.adsbygoogle,
 body > .google-auto-placed,
 body > #google_vignette,
@@ -448,7 +449,7 @@ body > div[id^="google_ads_frame"] {
   right: 0 !important;
   bottom: 0 !important;
   top: auto !important;
-  z-index: 5 !important;
+  z-index: 40 !important;
   max-width: 100vw !important;
   max-height: 100px !important;
   height: auto !important;

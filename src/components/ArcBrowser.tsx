@@ -475,6 +475,8 @@ export default function ArcBrowser() {
           </div>
         </main>
       </div>
+      <StickyAnchor enabled={stickyOn} />
+      <SideRails enabled={railsOn} />
       <DiscordPopup />
       <GlobalAnnouncement onNavigate={state.navigateToUrl} />
       <InspectOverlay

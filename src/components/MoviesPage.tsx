@@ -9,7 +9,6 @@ import { pxEncode, pxReady } from "@/lib/px";
 import { applyVpnRegion, isSignedIn } from "@/lib/vpn";
 import { setPendingAuth } from "@/lib/authPending";
 import { AdFeedStrip, AdPageStack } from "@/components/ads/Units";
-import { AdFeedStrip, AdPageStack } from "@/components/ads/Units";
 import { sealPlayerPopups, setPopupLock } from "@/lib/sealPlayerPopups";
 import { sealPollMs } from "@/lib/liteDevice";
 
@@ -1491,7 +1490,6 @@ export default function MoviesPage({
                 ) : (
                   <>
                     <div style={{ padding: "0 0 12px" }}>
-                      <AdFeedStrip />
                       <AdFeedStrip />
                       <AdPageStack />
                     </div>
