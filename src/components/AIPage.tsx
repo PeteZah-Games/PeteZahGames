@@ -29,9 +29,8 @@ import {
   LogIn,
   UserRound,
 } from "lucide-react";
-import { AdNativeBarAlt } from "@/components/ads/Adsterra";
 import { setPendingAuth } from "@/lib/authPending";
-import { AdFeedStrip, AdNativeBarAlt } from "@/components/ads/Units";
+import { AdFeedStrip } from "@/components/ads/Units";
 
 interface Message {
   id: string;
@@ -1300,10 +1299,12 @@ export default function AIPage({
     <div
       className="w-full transition-all ai-composer-shell"
       style={{
-        background: isLanding ? "hsla(220, 28%, 8%, 0.52)" : "hsla(220, 28%, 8%, 0.48)",
-        border: "1px solid hsla(0,0%,100%,0.14)",
+        background: isLanding ? "hsla(220, 32%, 10%, 0.88)" : "hsla(220, 30%, 9%, 0.82)",
+        border: "1px solid hsla(0,0%,100%,0.18)",
         borderRadius: isLanding ? 18 : 16,
-        boxShadow: isLanding ? "0 10px 40px rgba(0,0,0,0.35)" : "none",
+        boxShadow: isLanding
+          ? "0 12px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)"
+          : "0 8px 24px rgba(0,0,0,0.28)",
         padding: isLanding ? "14px 14px 12px" : "12px 12px 10px",
         backdropFilter: "blur(18px) saturate(1.2)",
         WebkitBackdropFilter: "blur(18px) saturate(1.2)",
@@ -1904,39 +1905,41 @@ export default function AIPage({
               </button>
             </div>
 
-            <div className="flex-1 flex flex-col items-center justify-center px-5 overflow-hidden">
+            <div className="flex-1 flex flex-col items-center justify-center px-5 min-h-0 overflow-y-auto">
               <motion.div
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-                className="w-full max-w-lg flex flex-col items-center gap-4"
+                className="w-full max-w-lg flex flex-col items-center gap-4 py-8"
               >
-                <div className="text-center space-y-2">
+                <div className="text-center space-y-2 relative z-10">
                   <h2
                     className="text-[1.65rem] sm:text-[1.85rem] font-bold tracking-tight"
                     style={{
-                      color: "hsla(0,0%,98%,0.96)",
+                      color: "#f4f7fb",
                       letterSpacing: "-0.03em",
-                      textShadow: "0 2px 24px rgba(0,0,0,0.45)",
+                      textShadow: "0 2px 24px rgba(0,0,0,0.65)",
                     }}
                   >
                     PeteAI
                   </h2>
-                  <p className="text-[13px] min-h-[1.25rem]" style={{ color: "hsla(0,0%,100%,0.62)", textShadow: "0 1px 12px rgba(0,0,0,0.4)" }}>
+                  <p
+                    className="text-[13px] min-h-[1.25rem]"
+                    style={{ color: "rgba(244,247,251,0.72)", textShadow: "0 1px 14px rgba(0,0,0,0.55)" }}
+                  >
                     {typedSub}
                     <span
                       className="inline-block w-[1px] h-[0.95em] ml-0.5 align-[-2px]"
                       style={{
-                        background: "hsla(0,0%,100%,0.45)",
+                        background: "rgba(244,247,251,0.5)",
                         animation: "pz-caret 1s step-end infinite",
                       }}
                     />
                   </p>
                 </div>
-                <div className="w-full">{composer}</div>
-                <div className="w-full" style={{ marginTop: 10 }}>
+                <div className="w-full relative z-10">{composer}</div>
+                <div className="w-full max-w-lg relative z-10" style={{ marginTop: 4, maxHeight: 120, overflow: "hidden" }}>
                   <AdFeedStrip />
-                  <AdNativeBarAlt />
                 </div>
               </motion.div>
             </div>
@@ -2037,9 +2040,6 @@ export default function AIPage({
 
             <div className="flex-shrink-0 relative z-10" style={{ padding: "0 max(8%, 20px) 18px" }}>
               {composer}
-              <div style={{ paddingTop: 8 }}>
-                <AdNativeBarAlt />
-              </div>
             </div>
           </>
         )}

@@ -714,6 +714,17 @@ body > #google_vignette {
 }
 
 html[data-bg-effect="rain"] .ai-composer-shell {
-  background: hsla(220, 30%, 7%, 0.58) !important;
+  background: hsla(220, 32%, 10%, 0.9) !important;
+}
+
+/* Confirmed no-fill slots must not reserve 250px and crush layouts (e.g. PeteAI) */
+[data-ad][data-ad-status="unfilled"] {
+  min-height: 0 !important;
+  height: 0 !important;
+  max-height: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
 }
 

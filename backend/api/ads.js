@@ -136,7 +136,7 @@ export async function adsGateHandler(req, res) {
 }
 
 export async function adsShownHandler(req, res) {
-  if (!isAdsEnabled() || isAdFreeRequest(req)) {
+  if (!isVideoAdsEnabled() || isAdFreeRequest(req)) {
     return res.json({ ok: true });
   }
   prune();

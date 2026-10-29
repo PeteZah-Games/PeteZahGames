@@ -484,6 +484,7 @@ export default function ChatPage({ onNavigate }: { onNavigate: (url: string) => 
 
   useEffect(() => {
     let stop = false;
+    const VTX_FALLBACK = "https://vtx.chat";
     const apply = (data: Boot) => {
       if (stop || !data) return;
       if (data.wire) holdWire(data.wire);
@@ -509,10 +510,25 @@ export default function ChatPage({ onNavigate }: { onNavigate: (url: string) => 
       } catch {}
       return false;
     };
+    const bailToDomain = () => {
+      if (stop) return;
+      setNote("Opening Vortex…");
+      try {
+        onNavigate(VTX_FALLBACK);
+      } catch {
+        window.location.assign(VTX_FALLBACK);
+      }
+    };
+    const watchdog = window.setTimeout(() => {
+      if (stop) return;
+      // Still on the spinner — boot never resolved.
+      bailToDomain();
+    }, 8000);
     fetch("/api/chat/boot", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then(async (data: Boot) => {
         if (stop || !data) return;
+        window.clearTimeout(watchdog);
         if (data.wire) holdWire(data.wire);
         if ((!data.live || data.error) && (data.wire || data.viewer)) {
           const rescued = await viaWire();
@@ -522,13 +538,15 @@ export default function ChatPage({ onNavigate }: { onNavigate: (url: string) => 
       })
       .catch(async () => {
         if (stop) return;
+        window.clearTimeout(watchdog);
         if (await viaWire()) return;
-        if (!stop) setNote("Chat is unavailable right now.");
+        bailToDomain();
       });
     return () => {
       stop = true;
+      window.clearTimeout(watchdog);
     };
-  }, [gen]);
+  }, [gen, onNavigate]);
 
   useEffect(() => {
     const onStore = (e: StorageEvent) => {
@@ -1144,6 +1162,17 @@ export default function ChatPage({ onNavigate }: { onNavigate: (url: string) => 
   let body: ReactNode = (
     <div className="pz-gate">
       <div className="pz-spinner" />
+      <p style={{ marginTop: 14, fontSize: 13, color: "var(--vx-muted, rgba(255,255,255,0.55))" }}>
+        Connecting to Vortex…
+      </p>
+      <button
+        type="button"
+        className="pz-join"
+        style={{ marginTop: 16 }}
+        onClick={() => onNavigate("https://vtx.chat")}
+      >
+        Open vtx.chat
+      </button>
     </div>
   );
 
