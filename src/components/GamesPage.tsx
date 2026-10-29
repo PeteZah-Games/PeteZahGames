@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Dices, Plus, Star, MoreVertical, X, Trash2, Share2, Copy, Check, Upload, ChevronLeft, ChevronRight, RefreshCw, Crown, Pencil } from "lucide-react";
 import { requestSyncSoon } from "@/lib/settingsSync";
-import { armAdAudio } from "@/lib/adGate";
+import { armAdAudio } from "@/lib/exoclick";
 import { AdFeedStrip, AdPageStack } from "@/components/ads/Units";
 import { originHttpHost } from "@/lib/siteOrigin";
 import { resolveGameViaHref } from "@/lib/proxyTarget";
