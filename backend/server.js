@@ -454,11 +454,8 @@ app.get('/api/ads/status', premiumStatusLimiter, adsStatusHandler);
 app.get('/api/admin/premium', premiumAdminLimiter, listPremiumHandler);
 app.post('/api/admin/premium', premiumAdminLimiter, createPremiumHandler);
 app.delete('/api/admin/premium/:id', premiumAdminLimiter, deletePremiumHandler);
-<<<<<<< HEAD
-=======
 // Same-origin RevIQ script + domain-aware ads.txt (must not live under /assets — nginx serves that static).
 mountRevAssets(app);
->>>>>>> 00ed85e5 (updates updates (games and chat fixes))
 app.get('/api/admin/ad-reports', adReportsLimiter, getAdminAdReportsHandler);
 app.get('/api/admin/ai-grants', aiGrantsLimiter, listAiGrantsHandler);
 app.post('/api/admin/ai-grants', aiGrantsLimiter, createAiGrantHandler);

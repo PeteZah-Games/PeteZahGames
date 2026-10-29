@@ -8,15 +8,8 @@ import { CoverImg } from "@/lib/mediaCover";
 import { pxEncode, pxReady } from "@/lib/px";
 import { applyVpnRegion, isSignedIn } from "@/lib/vpn";
 import { setPendingAuth } from "@/lib/authPending";
-<<<<<<< HEAD
-<<<<<<< HEAD
-import { AdResponsiveBanner, AdNativeBarAlt } from "@/components/ads/Adsterra";
-=======
 import { AdFeedStrip, AdPageStack } from "@/components/ads/Units";
->>>>>>> e03cf675 (updates updates (games and chat fixes))
-=======
 import { AdFeedStrip, AdPageStack } from "@/components/ads/Units";
->>>>>>> 00ed85e5 (updates updates (games and chat fixes))
 import { sealPlayerPopups, setPopupLock } from "@/lib/sealPlayerPopups";
 import { sealPollMs } from "@/lib/liteDevice";
 
@@ -1498,17 +1491,9 @@ export default function MoviesPage({
                 ) : (
                   <>
                     <div style={{ padding: "0 0 12px" }}>
-<<<<<<< HEAD
-<<<<<<< HEAD
-                      <AdResponsiveBanner />
-                      <AdNativeBarAlt />
-=======
                       <AdFeedStrip />
->>>>>>> e03cf675 (updates updates (games and chat fixes))
-=======
                       <AdFeedStrip />
                       <AdPageStack />
->>>>>>> 00ed85e5 (updates updates (games and chat fixes))
                     </div>
                     <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8, scrollbarWidth: "none" }}>
                       {shelfCatalog.map((item) => {

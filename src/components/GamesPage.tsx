@@ -2,13 +2,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Dices, Plus, Star, MoreVertical, X, Trash2, Share2, Copy, Check, Upload, ChevronLeft, ChevronRight, RefreshCw, Crown, Pencil } from "lucide-react";
 import { requestSyncSoon } from "@/lib/settingsSync";
-<<<<<<< HEAD
-import { AdResponsiveBanner, AdNativeBar, AdNativeBarAlt } from "@/components/ads/Adsterra";
-import { armAdAudio } from "@/lib/exoclick";
-=======
 import { armAdAudio } from "@/lib/adGate";
 import { AdFeedStrip, AdPageStack } from "@/components/ads/Units";
->>>>>>> e03cf675 (updates updates (games and chat fixes))
 import { originHttpHost } from "@/lib/siteOrigin";
 import { resolveGameViaHref } from "@/lib/proxyTarget";
 import { normalizeGameVia, type GameVia } from "@/lib/mochiPath";
@@ -16,7 +11,6 @@ import { generateGameId } from "@/lib/gameId";
 import { hrefs, marks } from "@/lib/uiMarks";
 import { isLiteDevice } from "@/lib/liteDevice";
 import ObfuscatedText from "./ObfuscatedText";
-import { AdFeedStrip, AdPageStack } from "@/components/ads/Units";
 import {
   trackCatalogFilter,
   trackCatalogSearch,
@@ -1091,17 +1085,8 @@ export default function GamesPage({ onNavigate, adminEdit = false, initialQuery 
                 </div>
               ) : null}
               <div className="pt-4 pb-2">
-<<<<<<< HEAD
-<<<<<<< HEAD
-                <AdResponsiveBanner />
-                <AdNativeBar />
-                <AdNativeBarAlt />
-=======
                 <AdPageStack dense />
->>>>>>> e03cf675 (updates updates (games and chat fixes))
-=======
                 <AdPageStack dense />
->>>>>>> 00ed85e5 (updates updates (games and chat fixes))
               </div>
               {hasMore && (
                 <div ref={loadMoreRef} className="flex justify-center py-8">

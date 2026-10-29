@@ -78,10 +78,6 @@ function clientIp(req) {
   return normalizePremiumIp(getClientIP(req) || toIPv4(null, req) || '') || '';
 }
 
-<<<<<<< HEAD
-/** Lightweight check used by ads gate + status endpoint. */
-=======
->>>>>>> 00ed85e5 (updates updates (games and chat fixes))
 export function isAdFreeRequest(req) {
   try {
     const uid = req.session?.user?.id;
@@ -112,6 +108,7 @@ export function isAdFreeRequest(req) {
     bumpCache(ik, ok);
     return ok;
   } catch {
+    // Missing table / DB blip must never opt the whole site out of ads.
     return false;
   }
 }

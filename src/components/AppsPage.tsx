@@ -2,16 +2,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Plus, Star, MoreVertical, X, Trash2, Share2, Copy, Check, Upload } from "lucide-react";
 import { requestSyncSoon } from "@/lib/settingsSync";
-<<<<<<< HEAD
-<<<<<<< HEAD
-import { AdResponsiveBanner, AdNativeBar, AdNativeBarAlt } from "@/components/ads/Adsterra";
-import { armAdAudio } from "@/lib/exoclick";
-=======
-=======
->>>>>>> 00ed85e5 (updates updates (games and chat fixes))
 import { AdFeedStrip, AdPageStack } from "@/components/ads/Units";
 import { armAdAudio } from "@/lib/adGate";
->>>>>>> e03cf675 (updates updates (games and chat fixes))
 import { hrefs, marks } from "@/lib/uiMarks";
 import ObfuscatedText from "./ObfuscatedText";
 
@@ -344,17 +336,8 @@ export default function AppsPage({ onNavigate }: AppsPageProps) {
                 </div>
               ) : null}
               <div className="pt-4 pb-8">
-<<<<<<< HEAD
-<<<<<<< HEAD
-                <AdResponsiveBanner />
-                <AdNativeBar />
-                <AdNativeBarAlt />
-=======
                 <AdPageStack dense />
->>>>>>> e03cf675 (updates updates (games and chat fixes))
-=======
                 <AdPageStack dense />
->>>>>>> 00ed85e5 (updates updates (games and chat fixes))
               </div>
             </>
           )}

@@ -80,10 +80,6 @@ function markGoogle(opts?: { hideUi?: boolean }) {
   try {
     localStorage.setItem(GOOGLE_KEY, String(Date.now()));
   } catch {}
-<<<<<<< HEAD
-  // hideUi=false while the one allowed interstitial is on screen (CSS would kill it otherwise).
-=======
->>>>>>> 00ed85e5 (updates updates (games and chat fixes))
   if (opts?.hideUi !== false) {
     try {
       document.documentElement.dataset.pzGCool = "1";
@@ -210,11 +206,7 @@ function ensureGoogle() {
   }
 }
 
-<<<<<<< HEAD
-/** Allow Google (reward OR vignette, not both) briefly; shared 5‑min cooldown after. */
-=======
 /** Combined rewarded+vignette: at most one Google break / 5 min / person. */
->>>>>>> 00ed85e5 (updates updates (games and chat fixes))
 function armGoogleBreak() {
   if (isAdFreeClient()) return false;
   if (!googleDue()) return false;
@@ -222,14 +214,10 @@ function armGoogleBreak() {
     sessionStorage.setItem(GOOGLE_ARMING_KEY, "1");
   } catch {}
   ensureGoogle();
-<<<<<<< HEAD
-  // Don't mark yet — mark when one actually shows (or when the arm window ends).
-=======
   markGoogle({ hideUi: false });
   try {
     document.documentElement.dataset.pzGShowing = "1";
   } catch {}
->>>>>>> 00ed85e5 (updates updates (games and chat fixes))
   pauseGoogle(false);
   if (googleArmTimer) window.clearTimeout(googleArmTimer);
   googleArmTimer = window.setTimeout(() => {
@@ -360,27 +348,17 @@ function disablePartnerAds() {
 }
 
 export function bootSlotNet() {
+  // Same-origin partner net loads for everyone; Google stays paused until a due earn break.
+  ensureNet();
+  pauseGoogle(true);
   void refreshAdFreeStatus().then((on) => {
-<<<<<<< HEAD
-    if (on) return;
-    ensureNet();
-    ensureGoogle();
-    enablePartnerAds();
-  });
-  syncCoolAttr();
-  watchGoogleBreakCascade();
-  // Start paused until syncSurfaceAds decides; avoids homepage flood on boot.
-=======
     if (on) {
       pauseGoogle(true);
       disablePartnerAds();
       return;
     }
-    ensureNet();
+    enablePartnerAds();
   });
-  // Never load googlesyndication on boot — only when arming a due earn break.
->>>>>>> 00ed85e5 (updates updates (games and chat fixes))
-  pauseGoogle(true);
 }
 
 export function isQuietSurface(url: string) {
@@ -394,20 +372,6 @@ export function isQuietSurface(url: string) {
   if (u.startsWith("petezah://extensions")) return true;
   if (u.startsWith("petezah://tools")) return true;
   if (u.startsWith("petezah://trending")) return true;
-<<<<<<< HEAD
-  // Games catalog, AI, chat are earn surfaces (not quiet). Gameviewer/proxy handled separately.
-  return false;
-}
-
-export function isEarnSurface(url: string) {
-  const u = String(url || "");
-  if (isGHref(u) || isGvHref(u)) return true;
-  if (u.startsWith("petezah://apps")) return true;
-  if (u.startsWith(hrefs.mu()) || u.startsWith(hrefs.mo())) return true;
-  if (u.startsWith("petezah://changelog")) return true;
-  if (u.startsWith("petezah://vm")) return true;
-=======
->>>>>>> 00ed85e5 (updates updates (games and chat fixes))
   return false;
 }
 
@@ -424,15 +388,6 @@ export function isImmersiveSurface(url: string, framed = false) {
   return false;
 }
 
-/** Gameviewer OR active proxy — zero overlay ads. */
-export function isImmersiveSurface(url: string, framed = false) {
-  const u = String(url || "");
-  if (isGvHref(u)) return true;
-  if (framed) return true;
-  if (/^https?:\/\//i.test(u)) return true;
-  return false;
-}
-
 export function isHomeSurface(url: string) {
   const u = String(url || "").toLowerCase();
   return !u || u === "about:blank" || u.startsWith("petezah://newtab") || u.startsWith("petezah://trending");
@@ -441,12 +396,6 @@ export function isHomeSurface(url: string) {
 /** Catalog / media shelves — denser non-intrusive inventory. */
 export function isSoftEarn(url: string) {
   const u = String(url || "");
-<<<<<<< HEAD
-  if (isGHref(u)) return true;
-  if (u.startsWith("petezah://apps")) return true;
-  if (u.startsWith(hrefs.mu()) || u.startsWith(hrefs.mo())) return true;
-  if (u.startsWith("petezah://changelog")) return true;
-=======
   if (isGHref(u) && !isGvHref(u)) return true;
   if (u.startsWith("petezah://apps")) return true;
   if (u.startsWith(hrefs.mu()) || u.startsWith(hrefs.mo())) return true;
@@ -463,20 +412,10 @@ export function isStickySurface(url: string, framed = false) {
   return isSoftEarn(url);
 }
 
-/** Desktop side rails: AI, chat, and VM only. */
+/** Closable desktop rails on earn catalogs (never home / viewer / proxy). */
 export function isRailSurface(url: string) {
   const u = String(url || "").toLowerCase();
->>>>>>> 00ed85e5 (updates updates (games and chat fixes))
-  if (u.startsWith("petezah://ai")) return true;
-  if (u.startsWith("petezah://chat")) return true;
-  if (u.startsWith("petezah://vm")) return true;
-  return false;
-}
-
-/** Closable desktop corner rails on high-traffic earn pages. */
-export function isRailSurface(url: string) {
-  const u = String(url || "").toLowerCase();
-  if (isGHref(u)) return true;
+  if (isGHref(u) && !isGvHref(u)) return true;
   if (u.startsWith("petezah://apps")) return true;
   if (u.startsWith(hrefs.mu()) || u.startsWith(hrefs.mo())) return true;
   if (u.startsWith("petezah://ai")) return true;
@@ -498,48 +437,28 @@ export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean; framed?
     } catch {}
     return { sticky: false, google: false };
   }
-<<<<<<< HEAD
-  ensureNet();
-  ensureGoogle();
-  syncCoolAttr();
-  watchGoogleBreakCascade();
-=======
 
->>>>>>> 00ed85e5 (updates updates (games and chat fixes))
   const home = isHomeSurface(url);
   const quiet = isQuietSurface(url);
   const immersive = isImmersiveSurface(url, !!opts?.framed);
   try {
-<<<<<<< HEAD
-    document.documentElement.dataset.pzHomeAds = home || isGHref(url) ? "1" : "0";
-    // Quiet overlay mode for gameviewer AND proxy.
-=======
     document.documentElement.dataset.pzHomeAds = home ? "1" : "0";
->>>>>>> 00ed85e5 (updates updates (games and chat fixes))
     document.documentElement.dataset.pzPlayAds = immersive ? "1" : "0";
   } catch {}
 
   if (immersive) {
-<<<<<<< HEAD
-    // Gameviewer + proxy: zero ads.
-    startPlayScrub();
-    pauseGoogle(true);
-    disablePartnerAds();
-=======
     // Viewer + proxy gameplay: never load googlesyndication; no sticky/rails.
     // Same-origin loader slots may still fill during the pre-entry break only.
     startPlayScrub();
     pauseGoogle(true);
->>>>>>> 00ed85e5 (updates updates (games and chat fixes))
     return { sticky: false, google: false };
   }
 
   stopPlayScrub();
-<<<<<<< HEAD
-=======
   ensureNet();
->>>>>>> 00ed85e5 (updates updates (games and chat fixes))
   enablePartnerAds();
+  syncCoolAttr();
+  watchGoogleBreakCascade();
 
   if (quiet || home) {
     pauseGoogle(true);
@@ -547,20 +466,12 @@ export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean; framed?
   }
 
   const earn = isSoftEarn(url);
-<<<<<<< HEAD
-  // Soft earn: closable sticky + page units; Google interstitial at most once / 5 min combined.
-=======
->>>>>>> 00ed85e5 (updates updates (games and chat fixes))
   if (earn && googleDue()) {
     armGoogleBreak();
     return { sticky: true, google: true };
   }
 
   pauseGoogle(true);
-<<<<<<< HEAD
-  hideGoogleInterstitials();
-=======
->>>>>>> 00ed85e5 (updates updates (games and chat fixes))
   return { sticky: earn, google: false };
 }
 
@@ -638,17 +549,10 @@ export function StickyAnchor({ enabled = true }: { enabled?: boolean }) {
   const blocked = useAdFreeGate();
 
   useEffect(() => {
-<<<<<<< HEAD
-    if (blocked) return;
-    ensureNet();
-    enablePartnerAds();
-  }, [blocked]);
-=======
     if (blocked || !enabled) return;
     ensureNet();
     enablePartnerAds();
   }, [blocked, enabled]);
->>>>>>> 00ed85e5 (updates updates (games and chat fixes))
 
   useEffect(() => {
     if (!enabled) setClosed(false);
@@ -685,12 +589,7 @@ export function StickyAnchor({ enabled = true }: { enabled?: boolean }) {
           aria-label="Close ad"
           onClick={() => {
             setClosed(true);
-<<<<<<< HEAD
-            // Closing bottom/sticky must not cascade into Google vignette/reward.
-            onOverlayDismissed();
-=======
             sealAfterDismiss();
->>>>>>> 00ed85e5 (updates updates (games and chat fixes))
           }}
           style={{
             position: "absolute",
@@ -829,11 +728,7 @@ export function SideRails({ enabled = true }: { enabled?: boolean }) {
   const close = () => {
     markRailsClosed();
     setClosed(true);
-<<<<<<< HEAD
-    onOverlayDismissed();
-=======
     sealAfterDismiss();
->>>>>>> 00ed85e5 (updates updates (games and chat fixes))
   };
 
   return (

@@ -27,8 +27,6 @@ import {
 import { hrefs, isGvHref, marks } from "@/lib/uiMarks";
 import { whenQuietEnds } from "@/lib/quietBoot";
 import { setRivetNavigateHandler } from "@/lib/rivet/host";
-<<<<<<< HEAD
-=======
 import {
   StickyAnchor,
   SideRails,
@@ -39,7 +37,6 @@ import {
   isRailSurface,
   isStickySurface,
 } from "@/components/ads/Units";
->>>>>>> 00ed85e5 (updates updates (games and chat fixes))
 
 function getPresenceClientId() {
   try {
@@ -104,8 +101,6 @@ export default function ArcBrowser() {
   const zoomOut = useCallback(() => setZoomLevel((z) => Math.max(z - 10, 50)), []);
   const resetZoom = useCallback(() => setZoomLevel(100), []);
 
-<<<<<<< HEAD
-=======
   const prevUrlRef = useRef(state.focusedTab?.url || "");
   const [stickyOn, setStickyOn] = useState(false);
   const [railsOn, setRailsOn] = useState(false);
@@ -124,7 +119,6 @@ export default function ArcBrowser() {
     prevUrlRef.current = url;
   }, [state.focusedTab?.url, state.focusedTab?.frame]);
 
->>>>>>> 00ed85e5 (updates updates (games and chat fixes))
   useEffect(() => {
     setRivetNavigateHandler((url) => {
       state.navigateToUrl(url);

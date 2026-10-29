@@ -33,9 +33,14 @@ export function refreshAdFreeStatus(force = false): Promise<boolean> {
   }
   if (pending) return pending;
   pending = fetch("/api/ads/status", { credentials: "include", cache: "no-store" })
-    .then((r) => (r.ok ? r.json() : { adFree: false }))
-    .then((d) => {
-      apply(!!d?.adFree);
+    .then(async (r) => {
+      if (!r.ok) return false;
+      const d = await r.json().catch(() => null);
+      // Strict: only explicit true opts out of ads. Failures keep ads on.
+      return d != null && d.adFree === true;
+    })
+    .then((on) => {
+      apply(!!on);
       return adFree;
     })
     .catch(() => {

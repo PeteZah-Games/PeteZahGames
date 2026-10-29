@@ -1934,12 +1934,8 @@ export default function AIPage({
                   </p>
                 </div>
                 <div className="w-full">{composer}</div>
-<<<<<<< HEAD
-                <div className="w-full" style={{ marginTop: 8 }}>
-=======
                 <div className="w-full" style={{ marginTop: 10 }}>
                   <AdFeedStrip />
->>>>>>> e03cf675 (updates updates (games and chat fixes))
                   <AdNativeBarAlt />
                 </div>
               </motion.div>
