@@ -6,6 +6,7 @@ import {
   setAdFreeListener,
   useAdFreeGate,
 } from "@/lib/adFree";
+import { petezahToPath } from "@/lib/surfacePath";
 
 export { isAdFreeClient, refreshAdFreeStatus, useAdFreeGate } from "@/lib/adFree";
 
@@ -13,6 +14,8 @@ declare global {
   interface Window {
     reviq?: Array<(api: any) => void> | any;
     adsbygoogle?: any;
+    googletag?: any;
+    pbjs?: any;
   }
 }
 
@@ -43,12 +46,55 @@ function withApi(fn: (api: any) => void) {
   }
 }
 
+/** RevIQ stamps land_uri/request_uri once from location — force current surface path. */
+function syncAdPageUri(tabUrl?: string) {
+  if (typeof window === "undefined") return;
+  const path =
+    (tabUrl ? petezahToPath(tabUrl) : "") ||
+    window.location.pathname ||
+    "/";
+  const pageUrl = `${window.location.origin}${path}`;
+  try {
+    window.reviq?.setKv?.("request_uri", path);
+    window.reviq?.setKv?.("surface_path", path);
+  } catch {}
+  try {
+    const g = window.googletag;
+    if (g?.cmd && g?.pubads) {
+      g.cmd.push(() => {
+        try {
+          const pubads = g.pubads();
+          pubads.setTargeting("request_uri", path);
+          // If we never left home in the document URL at boot, land_uri sticks on "/".
+          const land = pubads.getTargeting?.("land_uri");
+          const landVal = Array.isArray(land) ? land[0] : land;
+          if (!landVal || landVal === "/") {
+            pubads.setTargeting("land_uri", path);
+          }
+          pubads.setTargeting("utm_source_req_uri", path);
+        } catch {}
+      });
+    }
+  } catch {}
+  try {
+    window.pbjs?.que?.push?.(() => {
+      try {
+        window.pbjs?.setConfig?.({ pageUrl });
+      } catch {}
+    });
+    if (window.pbjs?.setConfig) {
+      window.pbjs.setConfig({ pageUrl });
+    }
+  } catch {}
+}
+
 /** SPA surfaces mount slots after RevIQ boots — re-enable + refresh so new [data-ad] auction. */
-function refreshPartnerAds() {
+function refreshPartnerAds(tabUrl?: string) {
   if (isAdFreeClient()) {
     disablePartnerAds();
     return;
   }
+  syncAdPageUri(tabUrl);
   withApi((api) => {
     try {
       api.setAdsEnabled?.(true);
@@ -59,15 +105,16 @@ function refreshPartnerAds() {
   });
 }
 
-function schedulePartnerRefresh() {
+function schedulePartnerRefresh(tabUrl?: string) {
   if (typeof window === "undefined") return;
   if (partnerRefreshTimer != null) window.clearTimeout(partnerRefreshTimer);
   partnerRefreshTimer = window.setTimeout(() => {
     partnerRefreshTimer = null;
-    refreshPartnerAds();
+    refreshPartnerAds(tabUrl);
   }, 120);
-  // Second pass after layout/sticky mount settles.
-  window.setTimeout(() => refreshPartnerAds(), 700);
+  // Second pass after layout/sticky mount settles + viewability.
+  window.setTimeout(() => refreshPartnerAds(tabUrl), 700);
+  window.setTimeout(() => refreshPartnerAds(tabUrl), 1800);
 }
 
 function hookNetLoad(el: Element) {
@@ -510,7 +557,7 @@ export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean; framed?
   // Rewarded/vignette stay gated to one combined break / 5 min via arm + cool CSS.
   if (earn) {
     ensureGoogle();
-    schedulePartnerRefresh();
+    schedulePartnerRefresh(url);
     if (googleDue()) {
       armGoogleBreak();
       return { sticky: true, google: true };
@@ -700,7 +747,11 @@ export function StickyAnchor({ enabled = true }: { enabled?: boolean }) {
             ×
           </button>
         ) : null}
-        <Slot name="anchor" kv={{ surface: "earn" }} />
+        <Slot
+          name="anchor"
+          kv={{ surface: "earn" }}
+          style={{ width: "min(336px, 100%)", minHeight: 100 }}
+        />
       </div>
     </div>
   );

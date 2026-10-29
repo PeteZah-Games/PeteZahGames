@@ -717,14 +717,17 @@ html[data-bg-effect="rain"] .ai-composer-shell {
   background: hsla(220, 32%, 10%, 0.9) !important;
 }
 
-/* Confirmed no-fill slots must not reserve 250px and crush layouts (e.g. PeteAI) */
+/* Confirmed no-fill slots must not reserve 250px and crush layouts (e.g. PeteAI).
+   Keep a tiny footprint so RevIQ's 50% viewability observer can still re-auction. */
 [data-ad][data-ad-status="unfilled"] {
-  min-height: 0 !important;
-  height: 0 !important;
-  max-height: 0 !important;
+  min-height: 1px !important;
+  height: 1px !important;
+  max-height: 1px !important;
   overflow: hidden !important;
   margin: 0 !important;
   padding: 0 !important;
   border: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 

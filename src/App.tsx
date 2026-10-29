@@ -12,6 +12,7 @@ import SvgAccessGate from "./components/SvgAccessGate";
 import LegalReagreeModal from "./components/LegalReagreeModal";
 import ActivityCaptchaModal from "./components/ActivityCaptchaModal";
 import { isSvgShell } from "./lib/siteOrigin";
+import { SURFACE_INDEX_PATHS } from "./lib/surfacePath";
 
 const queryClient = new QueryClient();
 const Router = isSvgShell() ? HashRouter : BrowserRouter;
@@ -34,6 +35,9 @@ const App = () => (
             <Route path="/api/chat/callback" element={<VortexCallback />} />
             <Route path="/api/chat/finish" element={<VortexCallback />} />
             <Route path="/" element={<Index />} />
+            {SURFACE_INDEX_PATHS.map((path) => (
+              <Route key={path} path={path} element={<Index />} />
+            ))}
             <Route path="/user/:username" element={<PublicProfileRoute />} />
             <Route path="/share/ai/:token" element={<SharedAiPage />} />
             <Route path="*" element={<NotFound />} />
