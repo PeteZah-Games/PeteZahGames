@@ -181,7 +181,18 @@ If you want to make the website better, the repository is open source, and my dm
         f.parentNode.insertBefore(j, f);
       })(window, document, "script", "dataLayer", "GTM-WPH7NCG4");
     </script>
-    <script defer src="/api/ads/net.js" data-pz-slot-net="1"></script>
+    <script>
+      // Inject (not a static src) so Vite does not try to bundle the same-origin proxy.
+      (function () {
+        if (document.querySelector('script[data-pz-slot-net="1"]')) return;
+        var s = document.createElement("script");
+        s.src = "/api/ads/net.js";
+        s.defer = true;
+        s.async = true;
+        s.setAttribute("data-pz-slot-net", "1");
+        document.head.appendChild(s);
+      })();
+    </script>
     <style>
       html, body {
         height: 100dvh;
@@ -210,7 +221,14 @@ If you want to make the website better, the repository is open source, and my dm
       .education-is-key {
         display: none !important;
       }
-      html[data-pz-home-ads="1"] [data-pz-forced-anchor="1"] {
+      html[data-pz-home-ads="1"] [data-pz-forced-anchor="1"],
+      html[data-pz-home-ads="1"] [data-reviq-sticky-ad] {
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
+      /* Prefer our closable sticky; hide RevIQ's built-in duplicate on earn pages */
+      html[data-pz-home-ads="0"][data-pz-play-ads="0"] [data-reviq-sticky-ad] {
         display: none !important;
         visibility: hidden !important;
         pointer-events: none !important;

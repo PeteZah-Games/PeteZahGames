@@ -435,30 +435,28 @@ html[data-pz-adfree="1"] body > iframe[name^="google_ads_iframe"] {
   pointer-events: none !important;
 }
 
-/* Above #root (z-index 10) so bottom Google units are visible on earn pages */
-body > ins.adsbygoogle,
+/* Keep bottom auto-ads above #root without crushing every Google node to 100px */
 body > .google-auto-placed,
-body > #google_vignette,
+body > ins.adsbygoogle.adsbygoogle-noablate + div,
 body > div[id^="aswift_"],
-body > iframe[id^="google_ads_iframe"],
-body > iframe[name^="google_ads_iframe"],
-body > div[class^="ns-"],
-body > div[id^="google_ads_frame"] {
+body > iframe[id^="google_ads_iframe_"],
+body > iframe[name^="google_ads_iframe"] {
+  z-index: 40 !important;
+  pointer-events: auto;
+}
+
+body > .google-auto-placed {
   position: fixed !important;
   left: 0 !important;
   right: 0 !important;
   bottom: 0 !important;
   top: auto !important;
-  z-index: 40 !important;
   max-width: 100vw !important;
-  max-height: 100px !important;
-  height: auto !important;
-  overflow: hidden !important;
-  transform: none !important;
-  pointer-events: auto;
+  max-height: min(120px, 20dvh) !important;
 }
 
 body > #google_vignette {
+  z-index: 45 !important;
   max-height: 100dvh !important;
 }
 

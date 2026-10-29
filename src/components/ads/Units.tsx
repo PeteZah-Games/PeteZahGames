@@ -23,12 +23,61 @@ const GOOGLE_ARMING_KEY = "pz-g-arming";
 let playScrubTimer: number | null = null;
 let playScrubObs: MutationObserver | null = null;
 let googleArmTimer: number | null = null;
+let partnerRefreshTimer: number | null = null;
+let netLoadHooked = false;
 
 setAdFreeListener((on) => {
   if (!on) return;
   pauseGoogle(true);
   disablePartnerAds();
 });
+
+function withApi(fn: (api: any) => void) {
+  window.reviq = window.reviq || [];
+  if (typeof window.reviq.push === "function") {
+    window.reviq.push(fn);
+  } else {
+    try {
+      fn(window.reviq);
+    } catch {}
+  }
+}
+
+/** SPA surfaces mount slots after RevIQ boots — re-enable + refresh so new [data-ad] auction. */
+function refreshPartnerAds() {
+  if (isAdFreeClient()) {
+    disablePartnerAds();
+    return;
+  }
+  withApi((api) => {
+    try {
+      api.setAdsEnabled?.(true);
+    } catch {}
+    try {
+      api.refresh?.();
+    } catch {}
+  });
+}
+
+function schedulePartnerRefresh() {
+  if (typeof window === "undefined") return;
+  if (partnerRefreshTimer != null) window.clearTimeout(partnerRefreshTimer);
+  partnerRefreshTimer = window.setTimeout(() => {
+    partnerRefreshTimer = null;
+    refreshPartnerAds();
+  }, 120);
+  // Second pass after layout/sticky mount settles.
+  window.setTimeout(() => refreshPartnerAds(), 700);
+}
+
+function hookNetLoad(el: Element) {
+  if (netLoadHooked) return;
+  netLoadHooked = true;
+  const onReady = () => schedulePartnerRefresh();
+  el.addEventListener("load", onReady, { once: true });
+  // Already evaluated (cached) — refresh shortly.
+  window.setTimeout(onReady, 0);
+}
 
 function ensureNet() {
   if (typeof document === "undefined") return;
@@ -40,6 +89,7 @@ function ensureNet() {
     document.querySelector(`script[src*="rev-iq"]`);
   if (existing) {
     existing.setAttribute("data-pz-slot-net", "1");
+    hookNetLoad(existing);
     return;
   }
   const s = document.createElement("script");
@@ -47,18 +97,8 @@ function ensureNet() {
   s.async = true;
   s.defer = true;
   s.dataset.pzSlotNet = "1";
+  hookNetLoad(s);
   document.head.appendChild(s);
-}
-
-function withApi(fn: (api: any) => void) {
-  window.reviq = window.reviq || [];
-  if (typeof window.reviq.push === "function") {
-    window.reviq.push(fn);
-  } else {
-    try {
-      fn(window.reviq);
-    } catch {}
-  }
 }
 
 function pauseGoogle(on: boolean) {
@@ -332,11 +372,7 @@ function enablePartnerAds() {
     disablePartnerAds();
     return;
   }
-  withApi((api) => {
-    try {
-      api.setAdsEnabled?.(true);
-    } catch {}
-  });
+  refreshPartnerAds();
 }
 
 function disablePartnerAds() {
@@ -470,6 +506,7 @@ export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean; framed?
   // Rewarded/vignette stay gated to one combined break / 5 min via arm + cool CSS.
   if (earn) {
     ensureGoogle();
+    schedulePartnerRefresh();
     if (googleDue()) {
       armGoogleBreak();
       return { sticky: true, google: true };
@@ -554,17 +591,51 @@ function MobileOnly({ children }: { children: ReactNode }) {
 
 export function StickyAnchor({ enabled = true }: { enabled?: boolean }) {
   const [closed, setClosed] = useState(false);
+  const [filled, setFilled] = useState(false);
   const blocked = useAdFreeGate();
 
   useEffect(() => {
     if (blocked || !enabled) return;
     ensureNet();
     enablePartnerAds();
+    schedulePartnerRefresh();
   }, [blocked, enabled]);
 
   useEffect(() => {
-    if (!enabled) setClosed(false);
+    if (!enabled) {
+      setClosed(false);
+      setFilled(false);
+    }
   }, [enabled]);
+
+  useEffect(() => {
+    if (blocked || !enabled || closed) return;
+    const root = document.querySelector("[data-pz-forced-anchor='1']");
+    if (!root) return;
+    const check = () => {
+      const slot = root.querySelector("[data-ad]") as HTMLElement | null;
+      if (!slot) return;
+      const status = slot.getAttribute("data-ad-status");
+      if (status === "filled") {
+        setFilled(true);
+        return;
+      }
+      // GPT/partner iframe with real height counts as fill even before status attr.
+      const media = slot.querySelector("iframe, img, video");
+      if (media) {
+        const r = (media as HTMLElement).getBoundingClientRect?.();
+        if (r && r.height > 40 && r.width > 40) setFilled(true);
+      }
+    };
+    check();
+    const mo = new MutationObserver(check);
+    mo.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-ad-status", "style"] });
+    const t = window.setInterval(check, 1500);
+    return () => {
+      mo.disconnect();
+      window.clearInterval(t);
+    };
+  }, [blocked, enabled, closed]);
 
   if (blocked || !enabled || closed) return null;
 
@@ -576,6 +647,7 @@ export function StickyAnchor({ enabled = true }: { enabled?: boolean }) {
         left: 12,
         bottom: 12,
         zIndex: 90,
+        // Must stay viewable for RevIQ/GAM auctions — never opacity:0 the slot.
         pointerEvents: "none",
         display: "flex",
         justifyContent: "flex-start",
@@ -585,43 +657,45 @@ export function StickyAnchor({ enabled = true }: { enabled?: boolean }) {
       <div
         style={{
           position: "relative",
-          pointerEvents: "auto",
+          pointerEvents: filled ? "auto" : "none",
           maxWidth: "100%",
           borderRadius: 10,
           overflow: "visible",
-          boxShadow: "0 10px 28px rgba(0,0,0,0.35)",
+          boxShadow: filled ? "0 10px 28px rgba(0,0,0,0.35)" : "none",
         }}
       >
-        <button
-          type="button"
-          aria-label="Close ad"
-          onClick={() => {
-            setClosed(true);
-            sealAfterDismiss();
-          }}
-          style={{
-            position: "absolute",
-            top: -8,
-            right: -8,
-            zIndex: 5,
-            width: 26,
-            height: 26,
-            borderRadius: 999,
-            border: "1px solid hsla(210,30%,80%,0.25)",
-            background: "hsla(220, 28%, 10%, 0.92)",
-            color: "#fff",
-            cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 14,
-            fontWeight: 700,
-            lineHeight: 1,
-            boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
-          }}
-        >
-          ×
-        </button>
+        {filled ? (
+          <button
+            type="button"
+            aria-label="Close ad"
+            onClick={() => {
+              setClosed(true);
+              sealAfterDismiss();
+            }}
+            style={{
+              position: "absolute",
+              top: -8,
+              right: -8,
+              zIndex: 5,
+              width: 26,
+              height: 26,
+              borderRadius: 999,
+              border: "1px solid hsla(210,30%,80%,0.25)",
+              background: "hsla(220, 28%, 10%, 0.92)",
+              color: "#fff",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 14,
+              fontWeight: 700,
+              lineHeight: 1,
+              boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
+            }}
+          >
+            ×
+          </button>
+        ) : null}
         <Slot name="anchor" kv={{ surface: "earn" }} />
       </div>
     </div>
@@ -718,6 +792,12 @@ function RailUnit({
 
 /** Closable desktop rails — AI / chat / VM only. */
 export function SideRails({ enabled = true }: { enabled?: boolean }) {
+  useEffect(() => {
+    if (!enabled || isAdFreeClient()) return;
+    ensureNet();
+    schedulePartnerRefresh();
+  }, [enabled]);
+
   const blocked = useAdFreeGate();
   const [closed, setClosed] = useState(() => railClosed());
 
