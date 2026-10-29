@@ -44,6 +44,7 @@ import searchSuggestRouter from './routes/search-suggest.js';
 import studyPulseRouter from './routes/study-pulse.js';
 import mochiRouter from './routes/mochi.js';
 import chatRouter from './routes/chat.js';
+import { mountRevAssets } from './routes/rev-assets.js';
 import db from './db.js';
 
 import { signupHandler } from './api/signup.js';
