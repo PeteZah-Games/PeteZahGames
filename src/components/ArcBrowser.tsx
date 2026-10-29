@@ -37,7 +37,6 @@ import {
   isRailSurface,
   isStickySurface,
 } from "@/components/ads/Units";
-import { pathToPetezah, syncBrowserSurfacePath } from "@/lib/surfacePath";
 
 function getPresenceClientId() {
   try {
@@ -114,8 +113,6 @@ export default function ArcBrowser() {
     const url = state.focusedTab?.url || "";
     const framed = !!state.focusedTab?.frame;
     const fromHome = isHomeSurface(prevUrlRef.current);
-    // Keep a real pathname so RevIQ land_uri/request_uri are not stuck on "/".
-    syncBrowserSurfacePath(url);
     syncSurfaceAds(url, { fromHome, framed });
     setStickyOn(isStickySurface(url, framed));
     setRailsOn(isRailSurface(url) && !isPlaySurface(url, framed));
@@ -321,13 +318,9 @@ export default function ArcBrowser() {
       const deep = params.get("m") || params.get("music");
       if (deep && deep.startsWith("petezah://")) {
         state.navigateToUrl(deep);
-        // Drop the query deep-link but keep / retain surface path for ads.
-        const path = window.location.pathname || "/";
-        window.history.replaceState({}, "", path);
-        return;
+        const clean = window.location.pathname || "/";
+        window.history.replaceState({}, "", clean);
       }
-      const fromPath = pathToPetezah(window.location.pathname || "/");
-      if (fromPath) state.navigateToUrl(fromPath);
     } catch {}
   }, []);
 
