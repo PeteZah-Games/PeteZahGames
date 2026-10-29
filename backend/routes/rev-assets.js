@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizeHost } from "../utils/seo-meta.js";
+import { getClientIP } from "../utils/client-ip.js";
+import { toIPv4 } from "../middleware/security.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ADS_CANDIDATES = [
@@ -30,6 +32,47 @@ function requestHost(req) {
   const raw = req.headers["x-forwarded-host"] || req.headers.host || req.hostname || "";
   const first = String(raw).split(",")[0].trim();
   return normalizeHost(first) || "localhost";
+}
+
+/**
+ * RevIQ's net.js re-fetches its own src and reads Cloudflare-style headers:
+ *   CR-IPCountry     → 2-letter country (else "invalid header: cr-geo")
+ *   CR-Connecting-IP → client IPv4/IPv6 (else "invalid header: cr-cip")
+ * js.rev.iq sets these via CF; our same-origin proxy must set them per visitor.
+ */
+function clientCountry(req) {
+  const raw = String(
+    req.headers["cf-ipcountry"] ||
+      req.headers["cloudfront-viewer-country"] ||
+      req.headers["x-vercel-ip-country"] ||
+      req.headers["x-country-code"] ||
+      ""
+  )
+    .trim()
+    .toUpperCase();
+  if (/^[A-Z]{2}$/.test(raw) && raw !== "XX" && raw !== "T1") return raw;
+  return "US";
+}
+
+function clientIpForRev(req) {
+  const cf = String(req.headers["cf-connecting-ip"] || "").trim();
+  if (cf && /^[\d.:a-fA-F]+$/.test(cf)) return cf;
+  const trueClient = String(req.headers["true-client-ip"] || "").trim();
+  if (trueClient && /^[\d.:a-fA-F]+$/.test(trueClient)) return trueClient;
+  const ip = getClientIP(req) || toIPv4(null, req) || "";
+  if (ip && ip !== "unknown" && /^[\d.:a-fA-F]+$/.test(ip)) return ip;
+  // Last resort so XP() doesn't hard-fail; bidding quality may be lower.
+  return "0.0.0.0";
+}
+
+function applyRevIqClientHeaders(req, res) {
+  const country = clientCountry(req);
+  const ip = clientIpForRev(req);
+  res.setHeader("CR-IPCountry", country);
+  res.setHeader("CR-Connecting-IP", ip);
+  // Same-origin reads all headers; expose anyway for any odd CORS path.
+  res.setHeader("Access-Control-Expose-Headers", "CR-IPCountry, CR-Connecting-IP, X-Rev-Host");
+  res.setHeader("X-Rev-Geo", country);
 }
 
 function readAdsTemplate() {
@@ -188,8 +231,11 @@ export async function revIqJsHandler(req, res) {
     const buf = await loadScript(host);
     res.status(200);
     res.setHeader("Content-Type", "application/javascript; charset=utf-8");
-    res.setHeader("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
+    // Body may be cached; geo/IP headers MUST stay per-visitor (no shared edge cache).
+    res.setHeader("Cache-Control", "private, max-age=300, stale-while-revalidate=3600");
+    res.setHeader("Vary", "CF-IPCountry, CF-Connecting-IP, X-Forwarded-For");
     res.setHeader("X-Rev-Host", host);
+    applyRevIqClientHeaders(req, res);
     res.send(buf);
   } catch {
     res.status(502).type("text/plain").send("ad script unavailable");

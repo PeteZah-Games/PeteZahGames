@@ -44,11 +44,11 @@ if (!lite) {
 
 whenQuietEnds(() => {
   const inject = (src: string, attrs?: Record<string, string>) => {
-    if (document.querySelector(`script[data-pz-deferred="${src}"]`)) return;
+    // Don't put custom data-* on AdSense tags — adsbygoogle warns on unknown attrs.
+    if ([...document.scripts].some((el) => el.src === src)) return;
     const s = document.createElement("script");
     s.async = true;
     s.src = src;
-    s.dataset.pzDeferred = src;
     if (attrs) {
       for (const [k, v] of Object.entries(attrs)) s.setAttribute(k, v);
     }

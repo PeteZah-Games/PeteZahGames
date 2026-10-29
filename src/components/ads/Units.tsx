@@ -144,8 +144,9 @@ function syncCoolAttr() {
 /** Closing bottom Google banner / sticky often arms vignette — consume the shared break. */
 function onOverlayDismissed() {
   markGoogle();
-  pauseGoogle(true);
   hideGoogleInterstitials();
+  // Cool CSS blocks vignette/reward; keep pause off so display units still fill.
+  pauseGoogle(false);
 }
 
 function hideGoogleInterstitials() {
@@ -195,14 +196,12 @@ function watchGoogleBreakCascade() {
         // Shared break: allow one interstitial only while arming / not yet cooled.
         if (cool && !isGoogleArming() && document.documentElement.dataset.pzGShowing !== "1") {
           hideGoogleInterstitials();
-          pauseGoogle(true);
         } else {
           // Count this as the one combined break; keep it visible, drop the other type.
           try {
             document.documentElement.dataset.pzGShowing = "1";
           } catch {}
           markGoogle({ hideUi: false });
-          pauseGoogle(true);
           if (rewarded && vignette) {
             hideGoogleShell(vignette === hit ? rewarded : vignette);
           }
@@ -210,6 +209,7 @@ function watchGoogleBreakCascade() {
             sessionStorage.removeItem(GOOGLE_ARMING_KEY);
           } catch {}
           // After it's gone (or shortly), enforce cool UI so nothing else stacks.
+          // Do NOT leave pauseAdRequests stuck on — that kills Google display banners.
           window.setTimeout(() => {
             try {
               if (!document.querySelector("body > #goog_rewarded, body > #google_vignette")) {
@@ -217,6 +217,7 @@ function watchGoogleBreakCascade() {
                 delete document.documentElement.dataset.pzGShowing;
               }
             } catch {}
+            pauseGoogle(false);
           }, 2500);
         }
         lastBannerSig = bannerSignature();
@@ -261,12 +262,14 @@ function armGoogleBreak() {
   pauseGoogle(false);
   if (googleArmTimer) window.clearTimeout(googleArmTimer);
   googleArmTimer = window.setTimeout(() => {
-    pauseGoogle(true);
     markGoogle();
+    hideGoogleInterstitials();
     try {
       sessionStorage.removeItem(GOOGLE_ARMING_KEY);
       delete document.documentElement.dataset.pzGShowing;
     } catch {}
+    // Cool attr suppresses further vignette/reward; display banners stay unpaused.
+    pauseGoogle(false);
     googleArmTimer = null;
   }, 18_000);
   return true;
@@ -274,8 +277,8 @@ function armGoogleBreak() {
 
 /** Closing a partner banner must not free a Google vignette/reward. */
 function sealAfterDismiss() {
-  pauseGoogle(true);
   markGoogle();
+  hideGoogleInterstitials();
   if (googleArmTimer) {
     window.clearTimeout(googleArmTimer);
     googleArmTimer = null;
@@ -284,6 +287,7 @@ function sealAfterDismiss() {
     sessionStorage.removeItem(GOOGLE_ARMING_KEY);
     delete document.documentElement.dataset.pzGShowing;
   } catch {}
+  pauseGoogle(false);
   scrubPlayOverlays();
 }
 
