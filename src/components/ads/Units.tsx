@@ -1,3 +1,12 @@
+/**
+ * RevIQ display ads — rebuilt to match https://docs.rev.iq/quickstart/frontend
+ *
+ * - Script: /api/ads/net.js (same-origin proxy of js.rev.iq/{host})
+ * - Units: <div data-ad="…" />
+ * - ads.txt: 302 → rev.iq/{host}/ads.txt (backend)
+ * - Premium: reviq.setAdsEnabled(false)
+ * - Optional: reviq.setUid({ e, u }) when signed in
+ */
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { hrefs, isGHref, isGvHref } from "@/lib/uiMarks";
 import {
@@ -11,42 +20,48 @@ export { isAdFreeClient, refreshAdFreeStatus, useAdFreeGate } from "@/lib/adFree
 
 declare global {
   interface Window {
-    reviq?: Array<(api: any) => void> | any;
-    adsbygoogle?: any;
+    reviq?: Array<(api: RevIqApi) => void> | RevIqApi;
   }
 }
+
+type RevIqApi = {
+  setAdsEnabled?: (on: boolean) => void;
+  setUid?: (uid: { e?: string; u?: string; p?: string }) => void;
+  refresh?: () => void;
+  push?: (fn: (api: RevIqApi) => void) => void;
+};
 
 const REV_SCRIPT = "/api/ads/net.js";
-const GOOGLE_GAP_MS = 5 * 60 * 1000;
-const GOOGLE_KEY = "pz-g-break";
-const GOOGLE_ARMING_KEY = "pz-g-arming";
-let playScrubTimer: number | null = null;
-let playScrubObs: MutationObserver | null = null;
-let googleArmTimer: number | null = null;
-let partnerRefreshTimer: number | null = null;
-let netLoadHooked = false;
+
+let netHooked = false;
+let refreshTimer: number | null = null;
 
 setAdFreeListener((on) => {
-  if (!on) return;
-  pauseGoogle(true);
-  disablePartnerAds();
+  withApi((api) => {
+    try {
+      api.setAdsEnabled?.(!on);
+    } catch {}
+  });
 });
 
-function withApi(fn: (api: any) => void) {
-  window.reviq = window.reviq || [];
-  if (typeof window.reviq.push === "function") {
-    window.reviq.push(fn);
-  } else {
-    try {
-      fn(window.reviq);
-    } catch {}
+function withApi(fn: (api: RevIqApi) => void) {
+  const q = (window.reviq = window.reviq || []);
+  if (Array.isArray(q) && typeof (q as any).push === "function") {
+    (q as Array<(api: RevIqApi) => void>).push(fn);
+    return;
   }
+  try {
+    fn(q as RevIqApi);
+  } catch {}
 }
 
-/** SPA surfaces mount slots after RevIQ boots — re-enable + refresh so new [data-ad] auction. */
-function refreshPartnerAds() {
+function refreshAds() {
   if (isAdFreeClient()) {
-    disablePartnerAds();
+    withApi((api) => {
+      try {
+        api.setAdsEnabled?.(false);
+      } catch {}
+    });
     return;
   }
   withApi((api) => {
@@ -59,37 +74,28 @@ function refreshPartnerAds() {
   });
 }
 
-function schedulePartnerRefresh() {
+function scheduleRefresh() {
   if (typeof window === "undefined") return;
-  if (partnerRefreshTimer != null) window.clearTimeout(partnerRefreshTimer);
-  partnerRefreshTimer = window.setTimeout(() => {
-    partnerRefreshTimer = null;
-    refreshPartnerAds();
-  }, 120);
-  // Second pass after layout/sticky mount settles.
-  window.setTimeout(() => refreshPartnerAds(), 700);
+  if (refreshTimer != null) window.clearTimeout(refreshTimer);
+  refreshTimer = window.setTimeout(() => {
+    refreshTimer = null;
+    refreshAds();
+  }, 150);
+  window.setTimeout(() => refreshAds(), 800);
 }
 
-function hookNetLoad(el: Element) {
-  if (netLoadHooked) return;
-  netLoadHooked = true;
-  const onReady = () => schedulePartnerRefresh();
-  el.addEventListener("load", onReady, { once: true });
-  // Already evaluated (cached) — refresh shortly.
-  window.setTimeout(onReady, 0);
-}
-
-function ensureNet() {
+function ensureScript() {
   if (typeof document === "undefined") return;
-  // Script is loaded once from index.html (same-origin proxy) — never inject a second copy.
   window.reviq = window.reviq || [];
   const existing =
     document.querySelector(`script[data-pz-slot-net="1"]`) ||
-    document.querySelector(`script[src="${REV_SCRIPT}"]`) ||
-    document.querySelector(`script[src*="rev-iq"]`);
+    document.querySelector(`script[src="${REV_SCRIPT}"]`);
   if (existing) {
-    existing.setAttribute("data-pz-slot-net", "1");
-    hookNetLoad(existing);
+    if (!netHooked) {
+      netHooked = true;
+      existing.addEventListener("load", () => scheduleRefresh(), { once: true });
+      window.setTimeout(() => scheduleRefresh(), 0);
+    }
     return;
   }
   const s = document.createElement("script");
@@ -97,335 +103,32 @@ function ensureNet() {
   s.async = true;
   s.defer = true;
   s.dataset.pzSlotNet = "1";
-  hookNetLoad(s);
+  netHooked = true;
+  s.addEventListener("load", () => scheduleRefresh(), { once: true });
   document.head.appendChild(s);
 }
 
-function pauseGoogle(on: boolean) {
-  try {
-    window.adsbygoogle = window.adsbygoogle || [];
-    window.adsbygoogle.pauseAdRequests = on ? 1 : 0;
-  } catch {}
+export function bootSlotNet() {
+  void refreshAdFreeStatus();
+  ensureScript();
 }
 
-function lastGoogleAt() {
-  try {
-    return Number(localStorage.getItem(GOOGLE_KEY) || 0) || 0;
-  } catch {
-    return 0;
-  }
-}
-
-function markGoogle(opts?: { hideUi?: boolean }) {
-  try {
-    localStorage.setItem(GOOGLE_KEY, String(Date.now()));
-  } catch {}
-  if (opts?.hideUi !== false) {
-    try {
-      document.documentElement.dataset.pzGCool = "1";
-      delete document.documentElement.dataset.pzGShowing;
-    } catch {}
-  }
-}
-
-function googleDue() {
-  try {
-    if (sessionStorage.getItem(GOOGLE_ARMING_KEY) === "1") return false;
-  } catch {}
-  return Date.now() - lastGoogleAt() >= GOOGLE_GAP_MS;
-}
-
-function syncCoolAttr() {
-  try {
-    document.documentElement.dataset.pzGCool = googleDue() ? "0" : "1";
-  } catch {}
-}
-
-/** Closing bottom Google banner / sticky often arms vignette — consume the shared break. */
-function onOverlayDismissed() {
-  markGoogle();
-  hideGoogleInterstitials();
-  // Cool CSS blocks vignette/reward; keep pause off so display units still fill.
-  pauseGoogle(false);
-}
-
-function hideGoogleInterstitials() {
-  try {
-    for (const el of Array.from(
-      document.querySelectorAll("body > #goog_rewarded, body > #google_vignette")
-    )) {
-      hideGoogleShell(el);
-    }
-  } catch {}
-}
-
-let bannerWatch: MutationObserver | null = null;
-let lastBannerSig = "";
-
-function bannerSignature() {
-  try {
-    const nodes = document.querySelectorAll(
-      "body > ins.adsbygoogle, body > .google-auto-placed, body > iframe[id^='google_ads_iframe'], body > div[id^='aswift_'], body > #google_vignette, body > #goog_rewarded"
-    );
-    return Array.from(nodes)
-      .map((el) => `${el.tagName}:${(el as HTMLElement).id || (el as HTMLElement).className || ""}`)
-      .join("|");
-  } catch {
-    return "";
-  }
-}
-
-function isGoogleArming() {
-  try {
-    return sessionStorage.getItem(GOOGLE_ARMING_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function watchGoogleBreakCascade() {
-  if (bannerWatch || typeof MutationObserver === "undefined") return;
-  lastBannerSig = bannerSignature();
-  bannerWatch = new MutationObserver(() => {
-    try {
-      const rewarded = document.querySelector("body > #goog_rewarded");
-      const vignette = document.querySelector("body > #google_vignette");
-      const hit = rewarded || vignette;
-      if (hit) {
-        const cool = document.documentElement.dataset.pzGCool === "1";
-        // Shared break: allow one interstitial only while arming / not yet cooled.
-        if (cool && !isGoogleArming() && document.documentElement.dataset.pzGShowing !== "1") {
-          hideGoogleInterstitials();
-        } else {
-          // Count this as the one combined break; keep it visible, drop the other type.
-          try {
-            document.documentElement.dataset.pzGShowing = "1";
-          } catch {}
-          markGoogle({ hideUi: false });
-          if (rewarded && vignette) {
-            hideGoogleShell(vignette === hit ? rewarded : vignette);
-          }
-          try {
-            sessionStorage.removeItem(GOOGLE_ARMING_KEY);
-          } catch {}
-          // After it's gone (or shortly), enforce cool UI so nothing else stacks.
-          // Do NOT leave pauseAdRequests stuck on — that kills Google display banners.
-          window.setTimeout(() => {
-            try {
-              if (!document.querySelector("body > #goog_rewarded, body > #google_vignette")) {
-                document.documentElement.dataset.pzGCool = "1";
-                delete document.documentElement.dataset.pzGShowing;
-              }
-            } catch {}
-            pauseGoogle(false);
-          }, 2500);
-        }
-        lastBannerSig = bannerSignature();
-        return;
-      }
-      const next = bannerSignature();
-      if (lastBannerSig && next.length < lastBannerSig.length) {
-        // A bottom unit was closed — do not let vignette/reward follow.
-        onOverlayDismissed();
-      }
-      lastBannerSig = next;
-    } catch {}
-  });
-  bannerWatch.observe(document.body, { childList: true, subtree: false });
-}
-
-function ensureGoogle() {
-  if (typeof document === "undefined") return;
-  if (isAdFreeClient()) return;
-  if (!document.querySelector(`script[data-pz-gnet="1"]`)) {
-    const s = document.createElement("script");
-    s.async = true;
-    s.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6640595376330309";
-    s.crossOrigin = "anonymous";
-    s.dataset.pzGnet = "1";
-    document.head.appendChild(s);
-  }
-}
-
-/** Combined rewarded+vignette: at most one Google break / 5 min / person. */
-function armGoogleBreak() {
-  if (isAdFreeClient()) return false;
-  if (!googleDue()) return false;
-  try {
-    sessionStorage.setItem(GOOGLE_ARMING_KEY, "1");
-  } catch {}
-  ensureGoogle();
-  markGoogle({ hideUi: false });
-  try {
-    document.documentElement.dataset.pzGShowing = "1";
-  } catch {}
-  pauseGoogle(false);
-  if (googleArmTimer) window.clearTimeout(googleArmTimer);
-  googleArmTimer = window.setTimeout(() => {
-    markGoogle();
-    hideGoogleInterstitials();
-    try {
-      sessionStorage.removeItem(GOOGLE_ARMING_KEY);
-      delete document.documentElement.dataset.pzGShowing;
-    } catch {}
-    // Cool attr suppresses further vignette/reward; display banners stay unpaused.
-    pauseGoogle(false);
-    googleArmTimer = null;
-  }, 18_000);
-  return true;
-}
-
-/** Closing a partner banner must not free a Google vignette/reward. */
-function sealAfterDismiss() {
-  markGoogle();
-  hideGoogleInterstitials();
-  if (googleArmTimer) {
-    window.clearTimeout(googleArmTimer);
-    googleArmTimer = null;
-  }
-  try {
-    sessionStorage.removeItem(GOOGLE_ARMING_KEY);
-    delete document.documentElement.dataset.pzGShowing;
-  } catch {}
-  pauseGoogle(false);
-  scrubPlayOverlays();
-}
-
-function hideGoogleShell(el: Element) {
-  const h = el as HTMLElement;
-  h.style.setProperty("display", "none", "important");
-  h.style.setProperty("visibility", "hidden", "important");
-  h.style.setProperty("pointer-events", "none", "important");
-  h.setAttribute("data-pz-scrubbed", "1");
-}
-
-function clearScrubbed() {
-  try {
-    for (const el of Array.from(document.querySelectorAll("[data-pz-scrubbed='1']"))) {
-      const h = el as HTMLElement;
-      h.style.removeProperty("display");
-      h.style.removeProperty("visibility");
-      h.style.removeProperty("pointer-events");
-      h.removeAttribute("data-pz-scrubbed");
-    }
-  } catch {}
-}
-
-/** Gameviewer: kill Google + partner overlays (keep only our sticky if present). */
-function scrubPlayOverlays() {
-  try {
-    pauseGoogle(true);
-    const nodes = document.querySelectorAll(
-      "body > #goog_rewarded, body > #google_vignette, body > .google-auto-placed, body > ins.adsbygoogle, body > iframe, body > div"
-    );
-    for (const el of Array.from(nodes)) {
-      const h = el as HTMLElement;
-      if (h.id === "root") continue;
-      if (h.dataset?.pzForcedAnchor === "1") continue;
-      if (h.dataset?.pzAdSlot === "1") continue;
-      if (h.dataset?.pzKeep === "1") continue;
-      const tag = h.tagName;
-      if (tag === "SCRIPT" || tag === "STYLE" || tag === "LINK" || tag === "META" || tag === "NOSCRIPT") continue;
-      const src = String((el as HTMLIFrameElement).src || "");
-      const id = String(h.id || "");
-      const cls = String(h.className || "");
-      const google =
-        /google|doubleclick|googlesyndication|pagead|adservice|aswift_|rewarded|vignette/i.test(
-          src + " " + id + " " + cls
-        );
-      let partnerCover = false;
-      try {
-        const st = window.getComputedStyle(h);
-        const z = Number.parseInt(st.zIndex || "0", 10) || 0;
-        const fixed = st.position === "fixed";
-        partnerCover =
-          fixed &&
-          z >= 40 &&
-          (h.offsetHeight >= 80 || (h.offsetWidth >= window.innerWidth * 0.5 && h.offsetHeight >= 40));
-      } catch {}
-      if (google || partnerCover) hideGoogleShell(el);
-    }
-  } catch {}
-}
-
-function startPlayScrub() {
-  scrubPlayOverlays();
-  if (playScrubTimer == null) {
-    playScrubTimer = window.setInterval(scrubPlayOverlays, 1200);
-  }
-  if (!playScrubObs && typeof MutationObserver !== "undefined") {
-    playScrubObs = new MutationObserver(() => scrubPlayOverlays());
-    playScrubObs.observe(document.body, { childList: true, subtree: false });
-  }
-}
-
-function stopPlayScrub() {
-  if (playScrubTimer != null) {
-    window.clearInterval(playScrubTimer);
-    playScrubTimer = null;
-  }
-  if (playScrubObs) {
-    playScrubObs.disconnect();
-    playScrubObs = null;
-  }
-  clearScrubbed();
-}
-
-function enablePartnerAds() {
-  if (isAdFreeClient()) {
-    disablePartnerAds();
-    return;
-  }
-  refreshPartnerAds();
-}
-
-function disablePartnerAds() {
+/** Push a privacy-safe hashed identity when the user is signed in (RevIQ setUid). */
+export function setRevIqUid(user: { email?: string | null; username?: string | null } | null) {
+  if (!user) return;
+  const e = String(user.email || "").trim();
+  const u = String(user.username || "").trim();
+  // Skip junk that produces invalid PPIDs (GPT wants 22–150 chars after hashing path).
+  if (!e && !u) return;
+  if (e && (e.length < 3 || !e.includes("@"))) return;
   withApi((api) => {
     try {
-      api.setAdsEnabled?.(false);
+      const payload: { e?: string; u?: string } = {};
+      if (e) payload.e = e;
+      if (u) payload.u = u;
+      api.setUid?.(payload);
     } catch {}
   });
-}
-
-export function bootSlotNet() {
-  // Same-origin partner net loads for everyone; Google stays paused until a due earn break.
-  ensureNet();
-  pauseGoogle(true);
-  void refreshAdFreeStatus().then((on) => {
-    if (on) {
-      pauseGoogle(true);
-      disablePartnerAds();
-      return;
-    }
-    enablePartnerAds();
-  });
-}
-
-export function isQuietSurface(url: string) {
-  const u = String(url || "").toLowerCase();
-  if (!u || u === "about:blank") return true;
-  if (u.startsWith("petezah://newtab")) return true;
-  if (u.startsWith("petezah://account")) return true;
-  if (u.startsWith("petezah://settings")) return true;
-  if (u.startsWith("petezah://history")) return true;
-  if (u.startsWith("petezah://bookmarks")) return true;
-  if (u.startsWith("petezah://extensions")) return true;
-  if (u.startsWith("petezah://tools")) return true;
-  if (u.startsWith("petezah://trending")) return true;
-  return false;
-}
-
-export function isPlaySurface(url: string, framed = false) {
-  return isImmersiveSurface(String(url || ""), !!framed);
-}
-
-/** Viewer / proxied browsing — zero ads (Lightspeed-safe: no third-party ad nets). */
-export function isImmersiveSurface(url: string, framed = false) {
-  const u = String(url || "");
-  if (isGvHref(u)) return true;
-  if (framed) return true;
-  if (/^https?:\/\//i.test(u)) return true;
-  return false;
 }
 
 export function isHomeSurface(url: string) {
@@ -433,7 +136,30 @@ export function isHomeSurface(url: string) {
   return !u || u === "about:blank" || u.startsWith("petezah://newtab") || u.startsWith("petezah://trending");
 }
 
-/** Catalog / media shelves — denser non-intrusive inventory. */
+export function isQuietSurface(url: string) {
+  const u = String(url || "").toLowerCase();
+  if (u.startsWith("petezah://account")) return true;
+  if (u.startsWith("petezah://settings")) return true;
+  if (u.startsWith("petezah://history")) return true;
+  if (u.startsWith("petezah://bookmarks")) return true;
+  if (u.startsWith("petezah://extensions")) return true;
+  if (u.startsWith("petezah://tools")) return true;
+  return false;
+}
+
+export function isPlaySurface(url: string, framed = false) {
+  if (framed) return true;
+  const u = String(url || "");
+  if (isGvHref(u) || u.startsWith("petezah://appviewer")) return true;
+  if (/^https?:\/\//i.test(u)) return true;
+  return false;
+}
+
+export function isImmersiveSurface(url: string, framed = false) {
+  return isPlaySurface(url, framed);
+}
+
+/** Catalog / media shelves — show RevIQ units. */
 export function isSoftEarn(url: string) {
   const u = String(url || "");
   if (isGHref(u) && !isGvHref(u)) return true;
@@ -446,36 +172,30 @@ export function isSoftEarn(url: string) {
   return false;
 }
 
-/** Closable bottom sticky on earn catalogs (never viewer/proxy/home). */
 export function isStickySurface(url: string, framed = false) {
   if (isImmersiveSurface(url, framed) || isHomeSurface(url)) return false;
   return isSoftEarn(url);
 }
 
-/** Closable desktop rails on earn catalogs (never home / viewer / proxy). */
 export function isRailSurface(url: string) {
-  const u = String(url || "").toLowerCase();
-  if (isGHref(u) && !isGvHref(u)) return true;
-  if (u.startsWith("petezah://apps")) return true;
-  if (u.startsWith(hrefs.mu()) || u.startsWith(hrefs.mo())) return true;
-  if (u.startsWith("petezah://ai")) return true;
-  if (u.startsWith("petezah://chat")) return true;
-  if (u.startsWith("petezah://vm")) return true;
-  if (u.startsWith("petezah://changelog")) return true;
-  return false;
+  return isSoftEarn(url);
 }
 
 export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean; framed?: boolean }) {
   void refreshAdFreeStatus();
+  ensureScript();
+
   if (isAdFreeClient()) {
-    pauseGoogle(true);
-    disablePartnerAds();
-    stopPlayScrub();
+    withApi((api) => {
+      try {
+        api.setAdsEnabled?.(false);
+      } catch {}
+    });
     try {
       document.documentElement.dataset.pzHomeAds = "1";
       document.documentElement.dataset.pzPlayAds = "0";
     } catch {}
-    return { sticky: false, google: false };
+    return { sticky: false };
   }
 
   const home = isHomeSurface(url);
@@ -486,42 +206,31 @@ export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean; framed?
     document.documentElement.dataset.pzPlayAds = immersive ? "1" : "0";
   } catch {}
 
-  if (immersive) {
-    // Viewer + proxy gameplay: never load googlesyndication; no sticky/rails.
-    // Same-origin loader slots may still fill during the pre-entry break only.
-    startPlayScrub();
-    pauseGoogle(true);
-    return { sticky: false, google: false };
+  if (home || quiet || immersive) {
+    withApi((api) => {
+      try {
+        api.setAdsEnabled?.(false);
+      } catch {}
+    });
+    return { sticky: false };
   }
 
-  stopPlayScrub();
-  ensureNet();
-  enablePartnerAds();
-  syncCoolAttr();
-  watchGoogleBreakCascade();
-
-  if (quiet || home) {
-    pauseGoogle(true);
-    return { sticky: false, google: false };
+  if (isSoftEarn(url)) {
+    withApi((api) => {
+      try {
+        api.setAdsEnabled?.(true);
+      } catch {}
+    });
+    scheduleRefresh();
+    return { sticky: true };
   }
 
-  const earn = isSoftEarn(url);
-  // Earn pages: partner sticky/rails + Google display banners.
-  // Rewarded/vignette stay gated to one combined break / 5 min via arm + cool CSS.
-  if (earn) {
-    ensureGoogle();
-    schedulePartnerRefresh();
-    if (googleDue()) {
-      armGoogleBreak();
-      return { sticky: true, google: true };
-    }
-    // Display/anchor units OK; cool attr keeps reward/vignette suppressed.
-    pauseGoogle(false);
-    return { sticky: true, google: false };
-  }
-
-  pauseGoogle(true);
-  return { sticky: false, google: false };
+  withApi((api) => {
+    try {
+      api.setAdsEnabled?.(false);
+    } catch {}
+  });
+  return { sticky: false };
 }
 
 export function Slot({
@@ -540,35 +249,24 @@ export function Slot({
   const blocked = useAdFreeGate();
   useEffect(() => {
     if (blocked) return;
-    ensureNet();
-    enablePartnerAds();
+    ensureScript();
+    scheduleRefresh();
   }, [blocked]);
   if (blocked) return null;
   const extra: Record<string, string> = {};
   if (size) extra["data-ad-size"] = size;
   if (kv) {
     for (const [k, v] of Object.entries(kv)) {
-      if (k && v) extra[`data-kv-${k}`] = v;
+      if (v) extra[`data-kv-${k}`] = v;
     }
   }
   return <div className={className} style={style} data-ad={name} {...extra} />;
 }
 
-const shell: CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  width: "100%",
-  gap: 6,
-  padding: "8px 0 10px",
-};
-
 function DesktopOnly({ children }: { children: ReactNode }) {
-  const [show, setShow] = useState(() =>
-    typeof window !== "undefined" ? window.matchMedia("(min-width: 900px)").matches : true
-  );
+  const [show, setShow] = useState(false);
   useEffect(() => {
-    const mq = window.matchMedia("(min-width: 900px)");
+    const mq = window.matchMedia("(min-width: 960px)");
     const on = () => setShow(mq.matches);
     on();
     mq.addEventListener?.("change", on);
@@ -579,11 +277,9 @@ function DesktopOnly({ children }: { children: ReactNode }) {
 }
 
 function MobileOnly({ children }: { children: ReactNode }) {
-  const [show, setShow] = useState(() =>
-    typeof window !== "undefined" ? window.matchMedia("(max-width: 899px)").matches : false
-  );
+  const [show, setShow] = useState(false);
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 899px)");
+    const mq = window.matchMedia("(max-width: 959px)");
     const on = () => setShow(mq.matches);
     on();
     mq.addEventListener?.("change", on);
@@ -600,9 +296,8 @@ export function StickyAnchor({ enabled = true }: { enabled?: boolean }) {
 
   useEffect(() => {
     if (blocked || !enabled) return;
-    ensureNet();
-    enablePartnerAds();
-    schedulePartnerRefresh();
+    ensureScript();
+    scheduleRefresh();
   }, [blocked, enabled]);
 
   useEffect(() => {
@@ -619,12 +314,10 @@ export function StickyAnchor({ enabled = true }: { enabled?: boolean }) {
     const check = () => {
       const slot = root.querySelector("[data-ad]") as HTMLElement | null;
       if (!slot) return;
-      const status = slot.getAttribute("data-ad-status");
-      if (status === "filled") {
+      if (slot.getAttribute("data-ad-status") === "filled") {
         setFilled(true);
         return;
       }
-      // GPT/partner iframe with real height counts as fill even before status attr.
       const media = slot.querySelector("iframe, img, video");
       if (media) {
         const r = (media as HTMLElement).getBoundingClientRect?.();
@@ -633,7 +326,12 @@ export function StickyAnchor({ enabled = true }: { enabled?: boolean }) {
     };
     check();
     const mo = new MutationObserver(check);
-    mo.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-ad-status", "style"] });
+    mo.observe(root, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["data-ad-status", "style"],
+    });
     const t = window.setInterval(check, 1500);
     return () => {
       mo.disconnect();
@@ -651,7 +349,6 @@ export function StickyAnchor({ enabled = true }: { enabled?: boolean }) {
         left: 12,
         bottom: 12,
         zIndex: 90,
-        // Must stay viewable for RevIQ/GAM auctions — never opacity:0 the slot.
         pointerEvents: "none",
         display: "flex",
         justifyContent: "flex-start",
@@ -672,10 +369,7 @@ export function StickyAnchor({ enabled = true }: { enabled?: boolean }) {
           <button
             type="button"
             aria-label="Close ad"
-            onClick={() => {
-              setClosed(true);
-              sealAfterDismiss();
-            }}
+            onClick={() => setClosed(true)}
             style={{
               position: "absolute",
               top: -8,
@@ -694,17 +388,12 @@ export function StickyAnchor({ enabled = true }: { enabled?: boolean }) {
               fontSize: 14,
               fontWeight: 700,
               lineHeight: 1,
-              boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
             }}
           >
             ×
           </button>
         ) : null}
-        <Slot
-          name="anchor"
-          kv={{ surface: "earn" }}
-          style={{ width: "min(336px, 100%)", minHeight: 100 }}
-        />
+        <Slot name="anchor" kv={{ surface: "earn" }} style={{ width: "min(336px, 100%)", minHeight: 90 }} />
       </div>
     </div>
   );
@@ -712,7 +401,7 @@ export function StickyAnchor({ enabled = true }: { enabled?: boolean }) {
 
 const RAILS_CLOSED_KEY = "pz-rails-closed";
 
-function railClosed(): boolean {
+function railsClosed() {
   try {
     return sessionStorage.getItem(RAILS_CLOSED_KEY) === "1";
   } catch {
@@ -726,186 +415,82 @@ function markRailsClosed() {
   } catch {}
 }
 
-function RailUnit({
-  side,
-  name,
-  onClose,
-}: {
-  side: "left" | "right";
-  name: string;
-  onClose: () => void;
-}) {
+export function SideRails({ enabled = true }: { enabled?: boolean }) {
+  const [closed, setClosed] = useState(railsClosed);
+  const blocked = useAdFreeGate();
+
+  useEffect(() => {
+    if (blocked || !enabled || closed) return;
+    ensureScript();
+    scheduleRefresh();
+  }, [blocked, enabled, closed]);
+
+  if (blocked || !enabled || closed) return null;
+
   return (
-    <div
-      data-pz-ad-slot="1"
-      data-pz-side-rail={side}
-      style={{
-        position: "fixed",
-        bottom: 56,
-        [side]: 12,
-        zIndex: 42,
-        width: 300,
-        maxWidth: "min(300px, calc(50vw - 24px))",
-        minHeight: 250,
-        pointerEvents: "auto",
-      }}
-    >
-      <div
+    <DesktopOnly>
+      <aside
+        data-pz-side-rail="left"
         style={{
-          position: "relative",
-          borderRadius: 10,
-          overflow: "visible",
-          background: "hsla(216, 28%, 8%, 0.72)",
-          border: "1px solid hsla(210, 30%, 80%, 0.12)",
-          boxShadow: "0 10px 28px rgba(0,0,0,0.35)",
+          position: "fixed",
+          left: 8,
+          top: "50%",
+          transform: "translateY(-50%)",
+          zIndex: 80,
+          width: 160,
+          pointerEvents: "auto",
         }}
       >
         <button
           type="button"
-          aria-label="Close ad"
-          onClick={onClose}
+          aria-label="Close ads"
+          onClick={() => {
+            markRailsClosed();
+            setClosed(true);
+          }}
           style={{
             position: "absolute",
-            top: -8,
-            right: -8,
-            zIndex: 5,
-            width: 26,
-            height: 26,
+            top: -10,
+            right: -10,
+            zIndex: 2,
+            width: 22,
+            height: 22,
             borderRadius: 999,
             border: "1px solid hsla(210,30%,80%,0.25)",
             background: "hsla(220, 28%, 10%, 0.92)",
             color: "#fff",
             cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 14,
+            fontSize: 12,
             fontWeight: 700,
-            lineHeight: 1,
-            boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
           }}
         >
           ×
         </button>
-        <Slot
-          name={name}
-          size="300x250"
-          style={{ width: "100%", minHeight: 250 }}
-          kv={{ surface: "rail", page: "utility" }}
-        />
-      </div>
-    </div>
-  );
-}
-
-/** Closable desktop rails — AI / chat / VM only. */
-export function SideRails({ enabled = true }: { enabled?: boolean }) {
-  useEffect(() => {
-    if (!enabled || isAdFreeClient()) return;
-    ensureNet();
-    schedulePartnerRefresh();
-  }, [enabled]);
-
-  const blocked = useAdFreeGate();
-  const [closed, setClosed] = useState(() => railClosed());
-
-  useEffect(() => {
-    if (blocked || !enabled) return;
-    ensureNet();
-    enablePartnerAds();
-  }, [blocked, enabled]);
-
-  useEffect(() => {
-    if (!enabled) setClosed(railClosed());
-  }, [enabled]);
-
-  if (blocked || !enabled || closed) return null;
-
-  const close = () => {
-    markRailsClosed();
-    setClosed(true);
-    sealAfterDismiss();
-  };
-
-  return (
-    <DesktopOnly>
-      <RailUnit side="left" name="left-rail-1" onClose={close} />
-      <RailUnit side="right" name="right-rail-1" onClose={close} />
+        <Slot name="left-rail-2" style={{ width: "100%", minHeight: 180 }} kv={{ surface: "rail" }} />
+      </aside>
+      <aside
+        data-pz-side-rail="right"
+        style={{
+          position: "fixed",
+          right: 8,
+          top: "50%",
+          transform: "translateY(-50%)",
+          zIndex: 80,
+          width: 160,
+          pointerEvents: "auto",
+        }}
+      >
+        <Slot name="right-rail-2" style={{ width: "100%", minHeight: 200 }} kv={{ surface: "rail" }} />
+      </aside>
     </DesktopOnly>
   );
 }
 
-export function AdResponsiveBanner({
-  className = "",
-  dense = false,
-}: {
-  className?: string;
-  exo?: boolean;
-  dense?: boolean;
-}) {
-  const blocked = useAdFreeGate();
-  if (blocked) return null;
-  return (
-    <div className={className} style={shell} data-pz-ad-slot="1">
-      <DesktopOnly>
-        <Slot name="billboard-1" style={{ width: "100%", minHeight: 90 }} kv={{ surface: "page" }} />
-        <Slot
-          name="leaderboard-1"
-          style={{ width: "100%", minHeight: 70, marginTop: dense ? 8 : 6 }}
-          kv={{ surface: "page" }}
-        />
-      </DesktopOnly>
-      <MobileOnly>
-        <Slot name="mobile-unit-1" style={{ width: "100%", minHeight: 100 }} kv={{ surface: "page" }} />
-      </MobileOnly>
-    </div>
-  );
-}
-
-export function AdNativeBar() {
-  const blocked = useAdFreeGate();
-  if (blocked) return null;
-  return (
-    <div style={{ ...shell, padding: "4px 0 8px" }} data-pz-ad-slot="1">
-      <DesktopOnly>
-        <Slot name="right-rail-2" style={{ width: "100%", minHeight: 200 }} kv={{ surface: "rail" }} />
-      </DesktopOnly>
-    </div>
-  );
-}
-
-export function AdNativeBarAlt() {
-  const blocked = useAdFreeGate();
-  if (blocked) return null;
-  return (
-    <div style={{ ...shell, padding: "2px 0 8px" }} data-pz-ad-slot="1">
-      <DesktopOnly>
-        <Slot name="left-rail-2" style={{ width: "100%", minHeight: 180 }} kv={{ surface: "rail" }} />
-      </DesktopOnly>
-      <MobileOnly>
-        <Slot name="mobile-unit-1" style={{ width: "100%", minHeight: 80 }} kv={{ surface: "rail" }} />
-      </MobileOnly>
-    </div>
-  );
-}
-
-/** Mid-feed strip between catalog rows — scrolls with content. */
 export function AdFeedStrip() {
   const blocked = useAdFreeGate();
   if (blocked) return null;
   return (
-    <div
-      data-pz-ad-slot="1"
-      data-ad-slot="feed"
-      style={{
-        width: "100%",
-        margin: "4px 0 8px",
-        padding: "8px 6px",
-        borderRadius: 12,
-        background: "hsla(216, 28%, 8%, 0.4)",
-        border: "1px solid hsla(210, 30%, 80%, 0.08)",
-      }}
-    >
+    <div data-pz-ad-slot="1" data-ad-slot="feed" style={{ width: "100%", padding: "8px 0" }}>
       <DesktopOnly>
         <Slot name="leaderboard-1" style={{ width: "100%", minHeight: 70 }} kv={{ surface: "feed" }} />
       </DesktopOnly>
@@ -916,99 +501,21 @@ export function AdFeedStrip() {
   );
 }
 
-/** End-of-page stack for catalogs. */
 export function AdPageStack({ dense = false }: { dense?: boolean }) {
   const blocked = useAdFreeGate();
   if (blocked) return null;
   return (
-    <div data-pz-ad-slot="1" data-ad-slot="page-stack" style={{ width: "100%", padding: "10px 0 6px" }}>
-      <AdResponsiveBanner dense={dense} />
-      <AdNativeBar />
-      <AdNativeBarAlt />
-    </div>
-  );
-}
-
-export function LoaderSlots() {
-  const blocked = useAdFreeGate();
-  useEffect(() => {
-    if (blocked) return;
-    ensureNet();
-    enablePartnerAds();
-    pauseGoogle(true);
-  }, [blocked]);
-  if (blocked) return null;
-  return (
     <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        zIndex: 1,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "18px 14px 20px",
-        overflow: "auto",
-        pointerEvents: "auto",
-        background: "radial-gradient(ellipse at 50% 0%, hsla(213,40%,18%,0.55), #070b12 55%)",
-      }}
       data-pz-ad-slot="1"
-      data-pz-loader-ads="1"
+      data-ad-slot="page-stack"
+      style={{ width: "100%", padding: dense ? "6px 0" : "10px 0 6px" }}
     >
-      <div
-        style={{
-          width: "min(720px, 100%)",
-          marginBottom: 14,
-          padding: "16px 18px",
-          borderRadius: 14,
-          background: "hsla(216, 32%, 8%, 0.94)",
-          border: "1px solid hsla(210, 40%, 80%, 0.16)",
-          boxShadow: "0 12px 40px rgba(0,0,0,0.45)",
-          textAlign: "center",
-          pointerEvents: "none",
-        }}
-      >
-        <p
-          style={{
-            margin: 0,
-            fontSize: "clamp(17px, 2.6vw, 22px)",
-            fontWeight: 750,
-            letterSpacing: "-0.02em",
-            color: "#f4f7fb",
-            lineHeight: 1.25,
-          }}
-        >
-          Please allow a brief break before loading
-        </p>
-        <p style={{ margin: "8px 0 0", fontSize: 12, color: "hsla(210,20%,78%,0.78)" }}>
-          Thanks for supporting PeteZah — continuing shortly.
-        </p>
-      </div>
-      <Slot name="billboard-1" style={{ width: "min(970px, 100%)", minHeight: 90 }} kv={{ surface: "loader" }} />
+      <DesktopOnly>
+        <Slot name="billboard-1" style={{ width: "100%", minHeight: 90 }} kv={{ surface: "page" }} />
+      </DesktopOnly>
       <MobileOnly>
-        <Slot name="mobile-unit-1" style={{ width: "min(360px, 100%)", minHeight: 100, marginTop: 12 }} kv={{ surface: "loader" }} />
+        <Slot name="mobile-unit-1" style={{ width: "100%", minHeight: 100 }} kv={{ surface: "page" }} />
       </MobileOnly>
     </div>
   );
-}
-
-export function loaderAdsFilled() {
-  try {
-    const root = document.querySelector("[data-pz-loader-ads='1']");
-    if (!root) return false;
-    const frames = root.querySelectorAll("iframe, img, video, ins iframe");
-    for (const el of Array.from(frames)) {
-      const r = (el as HTMLElement).getBoundingClientRect?.();
-      if (r && r.width > 40 && r.height > 40) return true;
-    }
-    const nodes = root.querySelectorAll("[data-ad]");
-    for (const node of Array.from(nodes)) {
-      if ((node as HTMLElement).childElementCount > 0) {
-        const r = (node as HTMLElement).getBoundingClientRect?.();
-        if (r && r.width > 40 && r.height > 40) return true;
-      }
-    }
-  } catch {}
-  return false;
 }

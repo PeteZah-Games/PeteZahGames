@@ -32,6 +32,7 @@ import {
   SideRails,
   bootSlotNet,
   syncSurfaceAds,
+  setRevIqUid,
   isHomeSurface,
   isPlaySurface,
   isRailSurface,
@@ -108,6 +109,12 @@ export default function ArcBrowser() {
   useEffect(() => {
     bootSlotNet();
   }, []);
+
+  useEffect(() => {
+    if (user?.email || user?.username) {
+      setRevIqUid({ email: user.email, username: user.username });
+    }
+  }, [user?.email, user?.username]);
 
   useEffect(() => {
     const url = state.focusedTab?.url || "";

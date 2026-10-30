@@ -43,21 +43,13 @@ if (!lite) {
 }
 
 whenQuietEnds(() => {
-  const inject = (src: string, attrs?: Record<string, string>) => {
-    // Don't put custom data-* on AdSense tags — adsbygoogle warns on unknown attrs.
-    if ([...document.scripts].some((el) => el.src === src)) return;
-    const s = document.createElement("script");
-    s.async = true;
-    s.src = src;
-    if (attrs) {
-      for (const [k, v] of Object.entries(attrs)) s.setAttribute(k, v);
-    }
-    document.head.appendChild(s);
-  };
-  inject("https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6640595376330309", {
-    crossorigin: "anonymous",
-  });
-  inject("https://a.magsrv.com/ad-provider.js");
+  // ExoClick provider for video interstitials only — display ads are RevIQ.
+  const src = "https://a.magsrv.com/ad-provider.js";
+  if ([...document.scripts].some((el) => el.src === src)) return;
+  const s = document.createElement("script");
+  s.async = true;
+  s.src = src;
+  document.head.appendChild(s);
 });
 
 function applyStoredSettings() {
