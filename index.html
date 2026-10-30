@@ -182,13 +182,16 @@ If you want to make the website better, the repository is open source, and my dm
       })(window, document, "script", "dataLayer", "GTM-WPH7NCG4");
     </script>
     <script>
-      // Inject (not a static src) so Vite does not try to bundle the same-origin proxy.
+      // Same-origin RevIQ proxy. Path MUST contain ".rev.iq" so their loader can
+      // find this tag (script[src*=".rev.iq"]) and re-fetch it for CR-* geo headers.
+      // Plain /api/ads/net.js breaks discovery when async (currentScript is null).
       (function () {
         if (document.querySelector('script[data-pz-slot-net="1"]')) return;
+        if (document.querySelector('script[src*=".rev.iq"]')) return;
+        var host = (location.hostname || "petezahgames.com").replace(/^www\./, "");
         var s = document.createElement("script");
-        s.src = "/api/ads/net.js";
+        s.src = "/api/ads/js.rev.iq/" + encodeURIComponent(host);
         s.defer = true;
-        s.async = true;
         s.setAttribute("data-pz-slot-net", "1");
         document.head.appendChild(s);
       })();

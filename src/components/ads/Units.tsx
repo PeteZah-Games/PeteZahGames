@@ -31,7 +31,15 @@ type RevIqApi = {
   push?: (fn: (api: RevIqApi) => void) => void;
 };
 
-const REV_SCRIPT = "/api/ads/net.js";
+/** Path includes ".rev.iq" so RevIQ can discover the tag + re-fetch CR-* headers same-origin. */
+function revScriptSrc() {
+  try {
+    const host = (window.location.hostname || "petezahgames.com").replace(/^www\./, "");
+    return `/api/ads/js.rev.iq/${encodeURIComponent(host)}`;
+  } catch {
+    return "/api/ads/js.rev.iq/petezahgames.com";
+  }
+}
 
 let netHooked = false;
 let refreshTimer: number | null = null;
@@ -87,9 +95,11 @@ function scheduleRefresh() {
 function ensureScript() {
   if (typeof document === "undefined") return;
   window.reviq = window.reviq || [];
+  const src = revScriptSrc();
   const existing =
     document.querySelector(`script[data-pz-slot-net="1"]`) ||
-    document.querySelector(`script[src="${REV_SCRIPT}"]`);
+    document.querySelector('script[src*=".rev.iq"]') ||
+    document.querySelector(`script[src="${src}"]`);
   if (existing) {
     if (!netHooked) {
       netHooked = true;
@@ -99,8 +109,7 @@ function ensureScript() {
     return;
   }
   const s = document.createElement("script");
-  s.src = REV_SCRIPT;
-  s.async = true;
+  s.src = src;
   s.defer = true;
   s.dataset.pzSlotNet = "1";
   netHooked = true;

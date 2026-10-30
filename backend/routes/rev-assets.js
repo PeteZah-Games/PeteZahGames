@@ -343,6 +343,11 @@ export async function adsTxtHandler(req, res) {
   }
 }
 
+/**
+ * Always fetch config for the request Host. Path `:host` exists so the
+ * browser script URL contains `.rev.iq` — RevIQ finds it via
+ * script[src*=".rev.iq"] and re-fetches that same-origin URL for CR-* geo.
+ */
 export async function revIqJsHandler(req, res) {
   const host = requestHost(req);
   try {
@@ -362,6 +367,9 @@ export async function revIqJsHandler(req, res) {
 
 export function mountRevAssets(app) {
   app.get("/ads.txt", adsTxtHandler);
-  // Under /api so nginx proxies to Node (static /assets/* is nginx-only).
+  // Path must include ".rev.iq" so RevIQ's script discovery + geo re-fetch stay same-origin.
+  // Docs load //js.rev.iq/{host}; we mirror that under /api/ads/ for Lightspeed.
+  app.get("/api/ads/js.rev.iq/:host", revIqJsHandler);
+  // Legacy alias (async inject could not discover this URL — prefer js.rev.iq path).
   app.get("/api/ads/net.js", revIqJsHandler);
 }

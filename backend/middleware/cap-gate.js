@@ -61,10 +61,11 @@ const OPEN_EXACT = new Set([
   '/api/chat/finish',
 ]);
 
-const OPEN_PREFIX = ['/cap/', '/api/verify-email', '/api/legal', '/api/study/', '/api/flashcards/', '/api/quiz/', '/vendor/', '/fonts/', '/fx/', '/storage/ag/', '/b/', '/f/__rivet__/'];
+const OPEN_PREFIX = ['/cap/', '/api/verify-email', '/api/legal', '/api/study/', '/api/flashcards/', '/api/quiz/', '/vendor/', '/fonts/', '/fx/', '/storage/ag/', '/b/', '/f/__rivet__/', '/api/ads/js.rev.iq/'];
 
 function isOpenPath(p) {
   if (OPEN_EXACT.has(p)) return true;
+  if (p.startsWith('/api/ads/js.rev.iq/')) return true;
   if (p === '/storage/ag' || p.startsWith('/storage/ag/')) return true;
   if (p === '/api/websocket/normal' || p.startsWith('/api/websocket/normal/')) return true;
   if (p === '/api/websocket/tor' || p.startsWith('/api/websocket/tor/')) return true;
