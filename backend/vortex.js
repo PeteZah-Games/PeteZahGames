@@ -445,18 +445,51 @@ export async function channelPresence(channelId) {
   return job;
 }
 
-export function callbackOrigin(req) {
-  const pub = publicOrigin();
-  const host = String(req.headers['x-forwarded-host'] || req.headers.host || '')
+export function sanitizeOrigin(raw) {
+  try {
+    const u = new URL(String(raw || '').trim());
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+    if (u.username || u.password) return null;
+    const host = u.hostname.toLowerCase();
+    if (u.protocol === 'http:' && host !== 'localhost' && host !== '127.0.0.1') return null;
+    if (!host || host.length > 253) return null;
+    return u.origin;
+  } catch {
+    return null;
+  }
+}
+
+export function callbackOrigin(req, explicit) {
+  const fromQuery = sanitizeOrigin(explicit ?? req?.query?.origin);
+  if (fromQuery) return fromQuery;
+
+  const fromHeader = sanitizeOrigin(req?.headers?.origin);
+  if (fromHeader) return fromHeader;
+
+  try {
+    const ref = req?.headers?.referer || req?.headers?.referrer;
+    if (ref) {
+      const fromRef = sanitizeOrigin(new URL(String(ref)).origin);
+      if (fromRef) return fromRef;
+    }
+  } catch {}
+
+  const host = String(req?.headers?.['x-forwarded-host'] || req?.headers?.host || '')
     .split(',')[0]
     .trim()
     .toLowerCase();
-  const hostname = host.split(':')[0];
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    const proto = String(req.headers['x-forwarded-proto'] || '').includes('https') || req.secure ? 'https' : 'http';
+  if (host) {
+    const hostname = host.split(':')[0];
+    const local = hostname === 'localhost' || hostname === '127.0.0.1';
+    const proto = local
+      ? String(req.headers['x-forwarded-proto'] || '').includes('https') || req.secure
+        ? 'https'
+        : 'http'
+      : 'https';
     return `${proto}://${host}`;
   }
-  return pub;
+
+  return publicOrigin();
 }
 
 export function knownChannel(box, channelId) {

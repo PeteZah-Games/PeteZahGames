@@ -1029,7 +1029,7 @@ export default function ChatPage({ onNavigate }: { onNavigate: (url: string) => 
     try {
       ret = sessionStorage.getItem("pz-vortex-return") || ret;
     } catch {}
-    const href = `/api/chat/auth?return=${encodeURIComponent(ret)}`;
+    const href = `/api/chat/auth?return=${encodeURIComponent(ret)}&origin=${encodeURIComponent(window.location.origin)}`;
     const tab = window.open(href, "_blank");
     if (tab) tab.opener = null;
     else window.location.assign(href);

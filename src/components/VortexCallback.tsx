@@ -7,10 +7,19 @@ export default function VortexCallback() {
     fetch(`/api/chat/finish${q}`, { credentials: "include", redirect: "manual" })
       .then((r) => r.json().catch(() => null))
       .then((d) => {
-        const dest = typeof d?.returnTo === "string" && d.returnTo.startsWith("petezah://")
-          ? d.returnTo
-          : "petezah://chat";
-        window.location.replace(`/?m=${encodeURIComponent(dest)}`);
+        if (typeof d?.back === "string" && /^https?:\/\//i.test(d.back)) {
+          window.location.replace(d.back);
+          return;
+        }
+        const dest =
+          typeof d?.returnTo === "string" && d.returnTo.startsWith("petezah://")
+            ? d.returnTo
+            : "petezah://chat";
+        const origin =
+          typeof d?.returnOrigin === "string" && /^https?:\/\//i.test(d.returnOrigin)
+            ? d.returnOrigin.replace(/\/$/, "")
+            : window.location.origin;
+        window.location.replace(`${origin}/?m=${encodeURIComponent(dest)}`);
       })
       .catch(() => {
         window.location.replace(`/?m=${encodeURIComponent("petezah://chat")}`);
