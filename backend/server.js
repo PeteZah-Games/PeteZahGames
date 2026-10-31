@@ -117,6 +117,12 @@ import {
   adsShownHandler,
 } from './api/ads.js';
 import {
+  customPromoGetHandler,
+  customPromoListHandler,
+  customPromoCreateHandler,
+  customPromoActiveHandler,
+} from './api/custom-ads.js';
+import {
   premiumAdminLimiter,
   premiumStatusLimiter,
   adsStatusHandler,
@@ -452,6 +458,10 @@ app.post('/api/ads/shown', adsGateLimiter, adsShownHandler);
 app.get('/api/ads/vast', adsVastLimiter, adsVastHandler);
 app.get('/api/ads/vast.xml', adsVastLimiter, adsVastXmlHandler);
 app.get('/api/ads/status', premiumStatusLimiter, adsStatusHandler);
+app.get('/api/ads/promo', customPromoGetHandler);
+app.get('/api/admin/custom-ads', premiumAdminLimiter, customPromoListHandler);
+app.post('/api/admin/custom-ads', premiumAdminLimiter, customPromoCreateHandler);
+app.post('/api/admin/custom-ads/:id/active', premiumAdminLimiter, customPromoActiveHandler);
 app.get('/api/admin/premium', premiumAdminLimiter, listPremiumHandler);
 app.post('/api/admin/premium', premiumAdminLimiter, createPremiumHandler);
 app.delete('/api/admin/premium/:id', premiumAdminLimiter, deletePremiumHandler);
@@ -793,8 +803,20 @@ server.listen({ port, backlog: 4096 }, () => {
 
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
-process.on('uncaughtException', err => { shield.sendLog(`💥 Uncaught: ${err.message}`, null); console.error(err); });
-process.on('unhandledRejection', reason => { shield.sendLog(`⚠️ Unhandled rejection: ${reason}`, null); console.error(reason); });
+process.on('uncaughtException', (err) => {
+  const msg = String(err?.message || err || '');
+  if (!/1006|Invalid WebSocket frame/i.test(msg)) {
+    shield.sendLog(`💥 Uncaught: ${msg}`, null, 'uncaught', 15 * 60 * 1000);
+  }
+  console.error(err);
+});
+process.on('unhandledRejection', (reason) => {
+  const msg = String(reason?.message || reason || '');
+  if (!/1006|Invalid WebSocket frame/i.test(msg)) {
+    shield.sendLog(`⚠️ Unhandled rejection: ${msg}`, null, 'unhandled', 15 * 60 * 1000);
+  }
+  console.error(reason);
+});
 
 function shutdown() {
   console.log('Shutting down...');

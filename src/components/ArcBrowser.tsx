@@ -38,6 +38,7 @@ import {
   isRailSurface,
   isStickySurface,
 } from "@/components/ads/Units";
+import CustomPromo from "@/components/ads/CustomPromo";
 
 function getPresenceClientId() {
   try {
@@ -124,6 +125,9 @@ export default function ArcBrowser() {
     setStickyOn(isStickySurface(url, framed));
     setRailsOn(isRailSurface(url) && !isPlaySurface(url, framed));
     prevUrlRef.current = url;
+    try {
+      if (url.startsWith("petezah://")) sessionStorage.setItem("pz-vortex-return", url.split("?")[0]);
+    } catch {}
   }, [state.focusedTab?.url, state.focusedTab?.frame]);
 
   useEffect(() => {
@@ -484,6 +488,7 @@ export default function ArcBrowser() {
       </div>
       <StickyAnchor enabled={stickyOn} />
       <SideRails enabled={railsOn} />
+      <CustomPromo />
       <DiscordPopup />
       <GlobalAnnouncement onNavigate={state.navigateToUrl} />
       <InspectOverlay

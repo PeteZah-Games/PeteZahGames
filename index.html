@@ -224,7 +224,6 @@ If you want to make the website better, the repository is open source, and my dm
       .education-is-key {
         display: none !important;
       }
-      /* Home / quiet: no sticky or rails */
       html[data-pz-home-ads="1"] [data-pz-forced-anchor="1"],
       html[data-pz-home-ads="1"] [data-pz-side-rail],
       html[data-pz-home-ads="1"] [data-reviq-sticky-ad] {
@@ -232,7 +231,6 @@ If you want to make the website better, the repository is open source, and my dm
         visibility: hidden !important;
         pointer-events: none !important;
       }
-      /* Viewer + proxy: no display units */
       html[data-pz-play-ads="1"] [data-pz-forced-anchor="1"],
       html[data-pz-play-ads="1"] [data-pz-side-rail],
       html[data-pz-play-ads="1"] [data-reviq-sticky-ad],
@@ -241,7 +239,6 @@ If you want to make the website better, the repository is open source, and my dm
         visibility: hidden !important;
         pointer-events: none !important;
       }
-      /* Premium ad-free */
       html[data-pz-adfree="1"] [data-ad],
       html[data-pz-adfree="1"] [data-pz-ad-slot],
       html[data-pz-adfree="1"] [data-ad-slot],
@@ -250,6 +247,20 @@ If you want to make the website better, the repository is open source, and my dm
       html[data-pz-adfree="1"] [data-reviq-sticky-ad] {
         display: none !important;
         pointer-events: none !important;
+      }
+      [data-reviq-sticky-ad] {
+        display: none !important;
+      }
+      body > ins.adsbygoogle,
+      body > .google-auto-placed,
+      body > div[id^="aswift_"],
+      body > iframe[id^="google_ads_iframe"][style*="top: 0"],
+      body > iframe[name^="google_ads_iframe"][style*="top: 0"] {
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+        height: 0 !important;
+        max-height: 0 !important;
       }
     </style>
   </head>

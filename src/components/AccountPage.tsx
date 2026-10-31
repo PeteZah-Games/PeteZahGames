@@ -552,6 +552,13 @@ export default function AccountPage({ onNavigate }: { onNavigate: (url: string) 
   const [annImportant, setAnnImportant] = useState(false);
   const [annBusy, setAnnBusy] = useState(false);
   const [annMsg, setAnnMsg] = useState("");
+  const [promoAds, setPromoAds] = useState<{ id: string; image_url: string; link_url: string; region: string; ips: string; active: number; created_at: number }[]>([]);
+  const [promoImage, setPromoImage] = useState("");
+  const [promoLink, setPromoLink] = useState("");
+  const [promoRegion, setPromoRegion] = useState("");
+  const [promoIps, setPromoIps] = useState("");
+  const [promoBusy, setPromoBusy] = useState(false);
+  const [promoMsg, setPromoMsg] = useState("");
   const [badgeCatalog, setBadgeCatalog] = useState<BadgeInfo[]>([]);
   const [badgeManageOpen, setBadgeManageOpen] = useState(false);
   const [badgeBusy, setBadgeBusy] = useState(false);
@@ -1049,6 +1056,10 @@ export default function AccountPage({ onNavigate }: { onNavigate: (url: string) 
     fetch("/api/admin/announcements", { credentials: "include" })
       .then((r) => r.json())
       .then((d) => setAnnouncements(d.announcements || []))
+      .catch(() => {});
+    fetch("/api/admin/custom-ads", { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => setPromoAds(d.ads || []))
       .catch(() => {});
   }, [section, user]);
 
@@ -4616,6 +4627,114 @@ export default function AccountPage({ onNavigate }: { onNavigate: (url: string) 
                         >
                           {a.active ? "Suspend" : "Reactivate"}
                         </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <Divider />
+                <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: C.textMuted, margin: "18px 0 10px" }}>
+                  Custom ads
+                </p>
+                <p style={{ fontSize: 11, color: C.textSub, margin: "0 0 12px" }}>
+                  Image + link. Optional region (matches geo headers like city/region/country) and/or IPs. Once per 3 hours per person.
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+                  <Field label="Image URL" value={promoImage} onChange={(e: any) => setPromoImage(e.target.value)} placeholder="https://…" maxLength={500} icon={Megaphone} />
+                  <Field label="Click URL" value={promoLink} onChange={(e: any) => setPromoLink(e.target.value)} placeholder="https://…" maxLength={500} icon={Megaphone} />
+                  <Field label="Region (optional)" value={promoRegion} onChange={(e: any) => setPromoRegion(e.target.value)} placeholder="Fairfax / VA / US" maxLength={80} icon={Megaphone} />
+                  <div>
+                    <label style={{ display: "block", fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 6, color: C.textMuted }}>IPs (optional)</label>
+                    <textarea
+                      value={promoIps}
+                      onChange={(e) => setPromoIps(e.target.value)}
+                      placeholder="1.2.3.4, 5.6.7.8"
+                      maxLength={800}
+                      rows={2}
+                      style={{
+                        width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8,
+                        color: C.text, fontSize: 12, padding: "9px 12px", outline: "none", resize: "vertical",
+                        fontFamily: "inherit", boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <button
+                      disabled={promoBusy}
+                      onClick={async () => {
+                        setPromoBusy(true);
+                        setPromoMsg("");
+                        try {
+                          const r = await fetch("/api/admin/custom-ads", {
+                            method: "POST",
+                            credentials: "include",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              imageUrl: promoImage.trim(),
+                              linkUrl: promoLink.trim(),
+                              region: promoRegion.trim(),
+                              ips: promoIps.trim(),
+                            }),
+                          });
+                          const d = await r.json().catch(() => null);
+                          if (!r.ok) throw new Error(d?.error || "failed");
+                          setPromoMsg("Saved");
+                          setPromoImage("");
+                          setPromoLink("");
+                          setPromoRegion("");
+                          setPromoIps("");
+                          const list = await fetch("/api/admin/custom-ads", { credentials: "include" }).then((x) => x.json());
+                          setPromoAds(list.ads || []);
+                        } catch (e: any) {
+                          setPromoMsg(e?.message || "Failed");
+                        } finally {
+                          setPromoBusy(false);
+                        }
+                      }}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 8,
+                        background: C.accentDim, border: `1px solid ${C.borderFocus}`, color: C.accent,
+                        fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: promoBusy ? 0.6 : 1,
+                      }}
+                    >
+                      {promoBusy ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+                      Publish custom ad
+                    </button>
+                    {promoMsg && <span style={{ fontSize: 11, color: C.success }}>{promoMsg}</span>}
+                  </div>
+                </div>
+                {promoAds.length === 0 ? (
+                  <p style={{ fontSize: 12, color: C.textMuted }}>No custom ads</p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {promoAds.map((p) => (
+                      <div key={p.id} style={{ padding: "10px 12px", borderRadius: 9, background: C.surface, border: `1px solid ${C.border}` }}>
+                        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                          <img src={p.image_url} alt="" style={{ width: 56, height: 36, objectFit: "cover", borderRadius: 6 }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 11, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.link_url}</div>
+                            <div style={{ fontSize: 10, color: C.textMuted }}>
+                              {p.region || "any region"} · {p.ips ? "IP list" : "any IP"} · {p.active ? "active" : "off"}
+                            </div>
+                          </div>
+                          <button
+                            onClick={async () => {
+                              await fetch(`/api/admin/custom-ads/${p.id}/active`, {
+                                method: "POST",
+                                credentials: "include",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ active: !p.active }),
+                              });
+                              setPromoAds((prev) => prev.map((x) => (x.id === p.id ? { ...x, active: p.active ? 0 : 1 } : x)));
+                            }}
+                            style={{
+                              padding: "6px 10px", borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: "pointer",
+                              border: `1px solid ${C.border}`, background: C.elevated, color: C.textSub,
+                            }}
+                          >
+                            {p.active ? "Suspend" : "Reactivate"}
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>

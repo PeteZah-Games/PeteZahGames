@@ -7,7 +7,7 @@ const VAST_ZONE = "6002278";
 const FILL_WAIT_MS = 5000;
 const HARD_CAP_MS = 90000;
 const WINDOW_MS = 5 * 60 * 1000;
-const MAX_PER_WINDOW = 2;
+const MAX_PER_WINDOW = 1;
 const PLAYS_KEY = "pz-video-ad-ok";
 
 declare global {

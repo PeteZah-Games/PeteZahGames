@@ -566,7 +566,7 @@ function NewTabSearchBar({
           onKeyDown={(e) => {
             if (e.key === "Enter") handleSubmit();
           }}
-          placeholder="Search or enter URL..."
+          placeholder="Enter a website or search query"
           className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none relative z-[1]"
           spellCheck={false}
         />

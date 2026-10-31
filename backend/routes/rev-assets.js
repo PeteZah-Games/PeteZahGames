@@ -313,32 +313,18 @@ async function loadAdsTxtBody(host) {
   return job;
 }
 
-/**
- * RevIQ webmaster docs: 302 /ads.txt → https://rev.iq/{host}/ads.txt
- * so authorized sellers stay current. Localhost falls back to a proxied copy.
- */
 export async function adsTxtHandler(req, res) {
   const host = requestHost(req);
-
-  if (!isLocalHost(host)) {
-    res.status(302);
-    res.setHeader("Cache-Control", "public, max-age=300");
-    res.setHeader("Location", `${ADS_REV_ORIGIN}/${encodeURIComponent(host)}/ads.txt`);
-    return res.end();
-  }
-
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
   try {
-    const body = await loadAdsTxtBody("petezahgames.com");
+    const body = await loadAdsTxtBody(isLocalHost(host) ? "petezahgames.com" : host);
     res.status(200);
-    res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    res.setHeader("Cache-Control", "public, max-age=300");
-    res.setHeader("X-Ads-Txt-Source", "rev.iq/petezahgames.com");
+    res.setHeader("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
     return res.send(body);
   } catch {
     const body = buildLocalAdsTxt(host);
     res.status(200);
-    res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    res.setHeader("Cache-Control", "public, max-age=60");
+    res.setHeader("Cache-Control", "public, max-age=300");
     return res.send(body);
   }
 }

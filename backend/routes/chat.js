@@ -449,41 +449,52 @@ function readPack(token) {
   }
 }
 
-function home() {
-  return '/?m=' + encodeURIComponent('petezah://chat');
+function home(returnTo) {
+  const dest = safeReturnTo(returnTo) || 'petezah://chat';
+  return '/?m=' + encodeURIComponent(dest);
 }
 
-const RETURN_HTML = `<!doctype html><html><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>Signing in</title></head><body style="margin:0;background:#020810;color:#9aa4b2;font:14px system-ui,sans-serif;display:grid;place-items:center;min-height:100vh"><p>Finishing sign-in…</p><script>
+function safeReturnTo(raw) {
+  const v = String(raw || '').trim();
+  if (!v.startsWith('petezah://')) return null;
+  if (v.length > 200 || /[\s<>"']/.test(v)) return null;
+  return v.split('#')[0];
+}
+
+function sendReturn(req, res) {
+  const saved = readPack(req.cookies?.pz_vtx) || req.session?.vortexOauth || null;
+  const back = JSON.stringify(home(saved?.returnTo));
+  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>Signing in</title></head><body style="margin:0;background:#020810;color:#9aa4b2;font:14px system-ui,sans-serif;display:grid;place-items:center;min-height:100vh"><p>Finishing sign-in…</p><script>
 var q=location.search||"";
-var back="/?m="+encodeURIComponent("petezah://chat");
+var back=${back};
 try{history.replaceState(null,"","/api/chat/callback")}catch(e){}
 var timer=setTimeout(function(){location.replace(back)},12000);
-fetch("/api/chat/finish"+q,{credentials:"include",headers:{Accept:"application/json"},redirect:"manual"}).finally(function(){clearTimeout(timer);location.replace(back)});
+fetch("/api/chat/finish"+q,{credentials:"include",headers:{Accept:"application/json"},redirect:"manual"}).then(function(r){return r.json().catch(function(){return null})}).then(function(d){if(d&&d.returnTo){try{back="/?m="+encodeURIComponent(d.returnTo)}catch(e){}}}).finally(function(){clearTimeout(timer);location.replace(back)});
 </script></body></html>`;
-
-function sendReturn(res) {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Referrer-Policy', 'no-referrer');
-  res.type('html').send(RETURN_HTML);
+  res.type('html').send(html);
 }
 
-function sendDone(req, res) {
-  if (req.headers['sec-fetch-mode'] === 'navigate') return res.redirect(home());
+function sendDone(req, res, returnTo) {
+  const dest = safeReturnTo(returnTo) || 'petezah://chat';
+  if (req.headers['sec-fetch-mode'] === 'navigate') return res.redirect(home(dest));
   res.setHeader('Cache-Control', 'no-store');
-  return res.status(204).end();
+  return res.status(200).json({ ok: true, returnTo: dest });
 }
 
 async function completeLogin(req, res) {
   const state = String(req.query.state || '');
   const code = String(req.query.code || '').slice(0, 512);
   const saved = readPack(req.cookies?.pz_vtx) || req.session?.vortexOauth || null;
+  const returnTo = saved?.returnTo || 'petezah://chat';
   if (req.session) delete req.session.vortexOauth;
   res.clearCookie('pz_vtx', { path: '/' });
   const redirectUri = saved?.redirectUri || `${callbackOrigin(req)}/api/chat/callback`;
   if (!saved || saved.exp < Date.now() || !sameSecret(state, saved.state) || req.query.error || !code) {
     const why = !saved ? 'missing sign-in cookie' : saved.exp < Date.now() ? 'sign-in cookie expired' : req.query.error ? 'provider returned an error' : 'sign-in state did not match';
     noteError(401, '/api/chat/finish', why);
-    return sendDone(req, res);
+    return sendDone(req, res, returnTo);
   }
   try {
     const tokens = await exchangeCode(code, saved.verifier, redirectUri);
@@ -493,8 +504,8 @@ async function completeLogin(req, res) {
     const msg = err instanceof Error && err.message && err.message !== 'chat' ? err.message : 'sign-in failed';
     noteError(status, '/api/chat/finish', msg);
   }
-  if (req.session?.save) return req.session.save(() => sendDone(req, res));
-  return sendDone(req, res);
+  if (req.session?.save) return req.session.save(() => sendDone(req, res, returnTo));
+  return sendDone(req, res, returnTo);
 }
 
 const SPANS = new Set([10, 60, 1440, 10080]);
@@ -796,7 +807,8 @@ router.get('/auth', async (req, res) => {
   const challenge = createHash('sha256').update(verifier).digest('base64url');
   const state = randomBytes(16).toString('base64url');
   const redirectUri = `${callbackOrigin(req)}/api/chat/callback`;
-  const pack = { state, verifier, exp: Date.now() + 10 * 60 * 1000, redirectUri };
+  const returnTo = safeReturnTo(req.query.return) || 'petezah://chat';
+  const pack = { state, verifier, exp: Date.now() + 10 * 60 * 1000, redirectUri, returnTo };
   ensureLinkKey(req);
   req.session.vortexOauth = pack;
   res.cookie('pz_vtx', signPack(pack), {
@@ -813,7 +825,7 @@ router.get('/auth', async (req, res) => {
   });
 });
 
-router.get('/callback', (req, res) => sendReturn(res));
+router.get('/callback', (req, res) => sendReturn(req, res));
 router.get('/finish', completeLogin);
 
 export default router;

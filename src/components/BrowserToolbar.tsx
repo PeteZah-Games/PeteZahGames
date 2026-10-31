@@ -446,7 +446,7 @@ export default function Toolbar({
               setSuggestOpen(false);
             }
           }}
-          placeholder="Search or enter URL"
+          placeholder="Enter a website or search query"
           className="pz-url-input flex-1 bg-transparent text-[12px] outline-none placeholder:text-white/35"
           style={{
             color: "hsla(0,0%,100%,0.9)",

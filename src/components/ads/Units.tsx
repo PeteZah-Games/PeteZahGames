@@ -1,12 +1,3 @@
-/**
- * RevIQ display ads — rebuilt to match https://docs.rev.iq/quickstart/frontend
- *
- * - Script: /api/ads/net.js (same-origin proxy of js.rev.iq/{host})
- * - Units: <div data-ad="…" />
- * - ads.txt: 302 → rev.iq/{host}/ads.txt (backend)
- * - Premium: reviq.setAdsEnabled(false)
- * - Optional: reviq.setUid({ e, u }) when signed in
- */
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { hrefs, isGHref, isGvHref } from "@/lib/uiMarks";
 import {
@@ -272,29 +263,31 @@ export function Slot({
   return <div className={className} style={style} data-ad={name} {...extra} />;
 }
 
-function DesktopOnly({ children }: { children: ReactNode }) {
-  const [show, setShow] = useState(false);
+function useMq(query: string) {
+  const [show, setShow] = useState(() => {
+    try {
+      return window.matchMedia(query).matches;
+    } catch {
+      return false;
+    }
+  });
   useEffect(() => {
-    const mq = window.matchMedia("(min-width: 960px)");
+    const mq = window.matchMedia(query);
     const on = () => setShow(mq.matches);
     on();
     mq.addEventListener?.("change", on);
     return () => mq.removeEventListener?.("change", on);
-  }, []);
-  if (!show) return null;
+  }, [query]);
+  return show;
+}
+
+function DesktopOnly({ children }: { children: ReactNode }) {
+  if (!useMq("(min-width: 960px)")) return null;
   return <>{children}</>;
 }
 
 function MobileOnly({ children }: { children: ReactNode }) {
-  const [show, setShow] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 959px)");
-    const on = () => setShow(mq.matches);
-    on();
-    mq.addEventListener?.("change", on);
-    return () => mq.removeEventListener?.("change", on);
-  }, []);
-  if (!show) return null;
+  if (!useMq("(max-width: 959px)")) return null;
   return <>{children}</>;
 }
 
@@ -497,6 +490,11 @@ export function SideRails({ enabled = true }: { enabled?: boolean }) {
 
 export function AdFeedStrip() {
   const blocked = useAdFreeGate();
+  useEffect(() => {
+    if (blocked) return;
+    ensureScript();
+    scheduleRefresh();
+  }, [blocked]);
   if (blocked) return null;
   return (
     <div data-pz-ad-slot="1" data-ad-slot="feed" style={{ width: "100%", padding: "8px 0" }}>
@@ -512,6 +510,11 @@ export function AdFeedStrip() {
 
 export function AdPageStack({ dense = false }: { dense?: boolean }) {
   const blocked = useAdFreeGate();
+  useEffect(() => {
+    if (blocked) return;
+    ensureScript();
+    scheduleRefresh();
+  }, [blocked]);
   if (blocked) return null;
   return (
     <div

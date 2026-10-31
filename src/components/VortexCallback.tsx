@@ -4,9 +4,17 @@ import { Loader2 } from "lucide-react";
 export default function VortexCallback() {
   useEffect(() => {
     const q = window.location.search || "";
-    fetch(`/api/chat/finish${q}`, { credentials: "include", redirect: "manual" }).finally(() => {
-      window.location.replace(`/?m=${encodeURIComponent("petezah://chat")}`);
-    });
+    fetch(`/api/chat/finish${q}`, { credentials: "include", redirect: "manual" })
+      .then((r) => r.json().catch(() => null))
+      .then((d) => {
+        const dest = typeof d?.returnTo === "string" && d.returnTo.startsWith("petezah://")
+          ? d.returnTo
+          : "petezah://chat";
+        window.location.replace(`/?m=${encodeURIComponent(dest)}`);
+      })
+      .catch(() => {
+        window.location.replace(`/?m=${encodeURIComponent("petezah://chat")}`);
+      });
   }, []);
   return (
     <div className="flex min-h-screen items-center justify-center" style={{ background: "#020810", color: "hsl(216 15% 68%)" }}>

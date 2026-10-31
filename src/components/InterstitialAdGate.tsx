@@ -39,10 +39,13 @@ export function useInterstitialUnlock(context: Context, enabled = true) {
         if (gate.show) {
           setPhase("ad");
           setHadAd(true);
+          const started = Date.now();
           await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
           if (cancelled) return;
           const behind = playLoaderNetworkAdsBehind(BEHIND_HOST_ID, HARD_BEHIND_MS);
           const result = await playVideoAd(context);
+          const remain = 3500 - (Date.now() - started);
+          if (remain > 0) await new Promise((r) => setTimeout(r, remain));
           if (cancelled) {
             try {
               await behind;
@@ -56,7 +59,7 @@ export function useInterstitialUnlock(context: Context, enabled = true) {
             scrubAdsterraLoadingArtifacts();
           } catch {}
           if (result === "error" || result === "skip") {
-            setHadAd(false);
+            setHadAd(true);
           }
         }
       } catch {
