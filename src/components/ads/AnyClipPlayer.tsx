@@ -3,14 +3,22 @@ const WINDOW_MS = 5 * 60 * 1000;
 const HOST_ID = "reviq-anyclip-aio-widget";
 const PUB = "2731";
 const WIDGET = "001Te000004ZYO7IAO_M13894";
-/** Official CDN — sibling modules (css/etc) resolve next to this URL. */
-const SRC = "https://player.anyclip.com/anyclip-widget/lre-widget/prod/v1/src/lre.js";
+
+/** Lightweight same-origin shell — only lre.js + css/vjs modules; media/ads stay on AnyClip CDN. */
+const LOCAL_SRC = "/assets/anyclip/lre.js";
+const LOCAL_MODULES = [
+  "/assets/anyclip/lre.js.module.css.js",
+  "/assets/anyclip/lre.js.module.vjs.js",
+] as const;
+const CDN_SRC = "https://player.anyclip.com/anyclip-widget/lre-widget/prod/v1/src/lre.js";
+
 const READY_WAIT_MS = 12000;
 const PLAY_AFTER_READY_MS = 9000;
 const HARD_CAP_MS = 18000;
 
 let audioArmed = false;
 let warmPromise: Promise<void> | null = null;
+let resolvedSrc: string = LOCAL_SRC;
 
 function readAt() {
   try {
@@ -89,11 +97,37 @@ function applyScriptAttrs(script: HTMLScriptElement) {
   script.dataset.pzAnyclip = "1";
 }
 
+async function resolveLocalShell(): Promise<string> {
+  try {
+    const checks = await Promise.all(
+      [LOCAL_SRC, ...LOCAL_MODULES].map(async (href) => {
+        const res = await fetch(href, { method: "HEAD", cache: "force-cache", credentials: "same-origin" });
+        return res.ok;
+      })
+    );
+    if (checks.every(Boolean)) {
+      // Warm the module bytes so dynamic import() is fast / Lightspeed-friendly.
+      await Promise.all(
+        LOCAL_MODULES.map(async (href) => {
+          try {
+            const res = await fetch(href, { cache: "force-cache", credentials: "same-origin" });
+            if (res.ok) await res.blob();
+          } catch {}
+        })
+      );
+      return LOCAL_SRC;
+    }
+  } catch {}
+  return CDN_SRC;
+}
+
 export function preloadAnyClip() {
   if (typeof document === "undefined") return warmPromise || Promise.resolve();
   if (warmPromise) return warmPromise;
 
   warmPromise = (async () => {
+    resolvedSrc = await resolveLocalShell();
+
     try {
       for (const href of [
         "https://player.anyclip.com",
@@ -114,7 +148,7 @@ export function preloadAnyClip() {
       if (!document.querySelector('link[data-pz-anyclip-preconnect="1"]')) {
         const preconnect = document.createElement("link");
         preconnect.rel = "preconnect";
-        preconnect.href = "https://player.anyclip.com";
+        preconnect.href = "https://assets.anyclip.com";
         preconnect.crossOrigin = "anonymous";
         preconnect.dataset.pzAnyclipPreconnect = "1";
         document.head.appendChild(preconnect);
@@ -123,9 +157,20 @@ export function preloadAnyClip() {
         const link = document.createElement("link");
         link.rel = "preload";
         link.as = "script";
-        link.href = SRC;
+        link.href = resolvedSrc;
         link.dataset.pzAnyclipPreload = "1";
         document.head.appendChild(link);
+      }
+      if (resolvedSrc === LOCAL_SRC) {
+        for (const href of LOCAL_MODULES) {
+          if (document.querySelector(`link[data-pz-anyclip-mod="1"][href="${href}"]`)) continue;
+          const link = document.createElement("link");
+          link.rel = "preload";
+          link.as = "script";
+          link.href = href;
+          link.dataset.pzAnyclipMod = "1";
+          document.head.appendChild(link);
+        }
       }
     } catch {}
 
@@ -149,6 +194,7 @@ export function playAnyClipAd(): Promise<"shown" | "skipped"> {
     let hard = 0;
     let readyTimer = 0;
     let playTimer = 0;
+    let usedFallback = false;
 
     const cleanupDom = (aggressive: boolean) => {
       try {
@@ -202,7 +248,6 @@ export function playAnyClipAd(): Promise<"shown" | "skipped"> {
     window.addEventListener("message", onMsg);
 
     readyTimer = window.setTimeout(() => {
-      // Still wait out hard cap if script loaded but ready is slow; only bail early on total silence.
       if (!settled && !ready && !started) {
         /* keep waiting until HARD_CAP */
       }
@@ -212,23 +257,29 @@ export function playAnyClipAd(): Promise<"shown" | "skipped"> {
       finish(started || ready ? "shown" : "skipped");
     }, HARD_CAP_MS);
 
-    void preloadAnyClip().finally(() => {
+    const inject = (src: string) => {
       if (settled) return;
       host = ensureHost();
       scrubScripts(host);
       scrubScripts(document.head);
 
-      // Prefer inserting the script as a sibling inside the mount (official embed pattern).
       const mount = document.getElementById("pz-anyclip-mount") || host.parentElement || document.body;
       scrubScripts(mount);
 
       const script = document.createElement("script");
-      script.src = SRC;
+      script.src = src;
       script.async = false;
       applyScriptAttrs(script);
-      script.onerror = () => finish("skipped");
+      script.onerror = () => {
+        if (!usedFallback && src !== CDN_SRC) {
+          usedFallback = true;
+          resolvedSrc = CDN_SRC;
+          inject(CDN_SRC);
+          return;
+        }
+        finish("skipped");
+      };
       script.onload = () => {
-        // Nudge intersection / visibility for inview configs if data-ap is ignored.
         try {
           host?.scrollIntoView?.({ block: "center", inline: "nearest" });
           window.dispatchEvent(new Event("scroll"));
@@ -236,14 +287,15 @@ export function playAnyClipAd(): Promise<"shown" | "skipped"> {
         } catch {}
       };
 
-      // Insert immediately before the host so the player anchors to this node.
       try {
         if (host.parentNode) host.parentNode.insertBefore(script, host);
         else mount.appendChild(script);
       } catch {
         mount.appendChild(script);
       }
-    });
+    };
+
+    void preloadAnyClip().finally(() => inject(resolvedSrc || LOCAL_SRC));
   });
 }
 
