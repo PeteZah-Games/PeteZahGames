@@ -43,13 +43,11 @@ if (!lite) {
 }
 
 whenQuietEnds(() => {
-  // ExoClick provider for video interstitials only — display ads are RevIQ.
-  const src = "https://a.magsrv.com/ad-provider.js";
-  if ([...document.scripts].some((el) => el.src === src)) return;
-  const s = document.createElement("script");
-  s.async = true;
-  s.src = src;
-  document.head.appendChild(s);
+  void import("@/components/ads/AnyClipPlayer").then((m) => {
+    try {
+      m.preloadAnyClip();
+    } catch {}
+  });
 });
 
 function applyStoredSettings() {

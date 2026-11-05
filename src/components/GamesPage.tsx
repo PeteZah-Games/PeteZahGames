@@ -2,9 +2,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Dices, Plus, Star, MoreVertical, X, Trash2, Share2, Copy, Check, Upload, ChevronLeft, ChevronRight, RefreshCw, Crown, Pencil } from "lucide-react";
 import { requestSyncSoon } from "@/lib/settingsSync";
-import { armAdAudio } from "@/lib/exoclick";
+import { armAdAudio, preloadAnyClip } from "@/components/ads/AnyClipPlayer";
 import { AdFeedStrip, AdPageStack, GamesAnchorStrip } from "@/components/ads/Units";
-import { AdNativeBar, AdResponsiveBanner } from "@/components/ads/Adsterra";
 import { originHttpHost } from "@/lib/siteOrigin";
 import { resolveGameViaHref } from "@/lib/proxyTarget";
 import { normalizeGameVia, type GameVia } from "@/lib/mochiPath";
@@ -850,6 +849,7 @@ export default function GamesPage({ onNavigate, adminEdit = false, initialQuery 
 
   const handlePlay = useCallback((game: Game) => {
     armAdAudio();
+    void preloadAnyClip();
     recordPlay(game);
     trackModuleOpen({
       id: game.id,
@@ -1079,7 +1079,7 @@ export default function GamesPage({ onNavigate, adminEdit = false, initialQuery 
                       <div style={{ gridColumn: "1 / -1" }}>
                         <AdFeedStrip />
                         {(i + 1) % 16 === 0 ? <GamesAnchorStrip /> : null}
-                        {(i + 1) % 24 === 0 ? <AdResponsiveBanner exo={false} /> : null}
+                        {(i + 1) % 24 === 0 ? <GamesAnchorStrip withBanner /> : null}
                       </div>
                     ) : null}
                   </div>
@@ -1091,9 +1091,6 @@ export default function GamesPage({ onNavigate, adminEdit = false, initialQuery 
                   <GamesAnchorStrip />
                 </div>
               ) : null}
-              <div className="pt-2 pb-1">
-                <AdNativeBar />
-              </div>
               <div className="pt-4 pb-2">
                 <AdPageStack dense />
               </div>

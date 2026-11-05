@@ -1,26 +1,18 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import {
-  requestAdGate,
-  playVideoAd,
-  stopVideoAd,
-  CONTAINER_ID,
-  preloadVideoAdAssets,
-} from "@/lib/exoclick";
-import {
-  playLoaderNetworkAdsBehind,
-  scrubAdsterraLoadingArtifacts,
-} from "@/components/ads/Adsterra";
-import { anyClipDue, playAnyClipAd, preloadAnyClip } from "@/components/ads/AnyClipPlayer";
+  anyClipDue,
+  armAdAudio,
+  playAnyClipAd,
+  preloadAnyClip,
+} from "@/components/ads/AnyClipPlayer";
 import { GameLaunchSplash } from "@/components/GameLaunchSplash";
 import { isAdFreeClient } from "@/lib/adFree";
 
 type Context = "game" | "app" | "vm";
 export type InterstitialPhase = "checking" | "ad" | "loading" | "ready";
 
-const HARD_BEHIND_MS = 8000;
-const BEHIND_HOST_ID = "pz-loader-ad-behind";
-const AD_HARD_MS = 18000;
+const AD_HARD_MS = 14000;
 const SKIP_AFTER_MS = 2500;
 
 export function useInterstitialUnlock(context: Context, enabled = true) {
@@ -48,8 +40,7 @@ export function useInterstitialUnlock(context: Context, enabled = true) {
     setHadAd(false);
     setCanSkip(false);
     setPhase("checking");
-    preloadVideoAdAssets();
-    preloadAnyClip();
+    void preloadAnyClip();
 
     const goNext = () => {
       if (cancelRef.current || doneRef.current) return;
@@ -57,12 +48,6 @@ export function useInterstitialUnlock(context: Context, enabled = true) {
       window.clearTimeout(skipTimer);
       window.clearTimeout(hardTimer);
       setCanSkip(false);
-      try {
-        stopVideoAd();
-      } catch {}
-      try {
-        scrubAdsterraLoadingArtifacts();
-      } catch {}
       if (context === "game") {
         setPhase("loading");
         return;
@@ -80,58 +65,22 @@ export function useInterstitialUnlock(context: Context, enabled = true) {
           goNext();
         }, AD_HARD_MS);
 
-        if (context === "game" && !isAdFreeClient() && anyClipDue()) {
-          setPhase("ad");
-          setHadAd(true);
-          await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-          if (cancelRef.current || doneRef.current) return;
-          await Promise.race([
-            playAnyClipAd(9000),
-            new Promise<"skipped">((r) => window.setTimeout(() => r("skipped"), 9000)),
-          ]);
-          if (cancelRef.current || doneRef.current) return;
+        if (isAdFreeClient() || !anyClipDue()) {
+          goNext();
+          return;
         }
 
-        const gate = await Promise.race([
-          requestAdGate(context),
-          new Promise<{ show: false; reason: string }>((r) =>
-            window.setTimeout(() => r({ show: false, reason: "timeout" }), 2000)
-          ),
-        ]);
+        setPhase("ad");
+        setHadAd(true);
+        armAdAudio();
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
         if (cancelRef.current || doneRef.current) return;
-
-        if (gate.show) {
-          setPhase("ad");
-          setHadAd(true);
-          await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-          if (cancelRef.current || doneRef.current) return;
-          const behind = playLoaderNetworkAdsBehind(BEHIND_HOST_ID, HARD_BEHIND_MS);
-          await Promise.race([
-            playVideoAd(context),
-            new Promise<"skip">((r) => window.setTimeout(() => r("skip"), 16000)),
-          ]);
-          try {
-            await Promise.race([behind, new Promise((r) => window.setTimeout(r, 500))]);
-          } catch {}
-          if (cancelRef.current || doneRef.current) return;
-          try {
-            stopVideoAd();
-          } catch {}
-          try {
-            scrubAdsterraLoadingArtifacts();
-          } catch {}
-          setHadAd(true);
-        }
+        await playAnyClipAd();
+        if (cancelRef.current || doneRef.current) return;
+        setHadAd(true);
       } catch {
-        try {
-          stopVideoAd();
-        } catch {}
         if (!doneRef.current) setHadAd(false);
       }
-
-      try {
-        scrubAdsterraLoadingArtifacts();
-      } catch {}
 
       goNext();
     })();
@@ -140,12 +89,6 @@ export function useInterstitialUnlock(context: Context, enabled = true) {
       cancelRef.current = true;
       window.clearTimeout(skipTimer);
       window.clearTimeout(hardTimer);
-      try {
-        stopVideoAd();
-      } catch {}
-      try {
-        scrubAdsterraLoadingArtifacts();
-      } catch {}
     };
   }, [context, enabled]);
 
@@ -156,13 +99,6 @@ export function useInterstitialUnlock(context: Context, enabled = true) {
 
   const skipAd = () => {
     cancelRef.current = true;
-    doneRef.current = false;
-    try {
-      stopVideoAd();
-    } catch {}
-    try {
-      scrubAdsterraLoadingArtifacts();
-    } catch {}
     doneRef.current = true;
     setCanSkip(false);
     if (context === "game") {
@@ -221,16 +157,6 @@ export function InterstitialOverlay({
     >
       <div style={{ flex: 1, minHeight: 0, position: "relative", overflow: "visible" }}>
         <div
-          id={BEHIND_HOST_ID}
-          style={{
-            position: "absolute",
-            inset: 0,
-            zIndex: 1,
-            overflow: "hidden",
-            pointerEvents: "none",
-          }}
-        />
-        <div
           style={{
             position: "absolute",
             inset: 0,
@@ -269,11 +195,6 @@ export function InterstitialOverlay({
           ) : null}
         </div>
         <div
-          id={CONTAINER_ID}
-          data-pz-ad-slot="1"
-          style={{ position: "absolute", inset: 0, zIndex: 3, overflow: "visible" }}
-        />
-        <div
           id="pz-anyclip-mount"
           style={{
             position: "absolute",
@@ -288,8 +209,9 @@ export function InterstitialOverlay({
           <div
             id="reviq-anyclip-aio-widget"
             style={{
-              width: "min(400px, 92vw)",
-              height: 225,
+              width: "min(640px, 94vw)",
+              height: "min(360px, 56vw)",
+              maxHeight: 360,
               pointerEvents: "auto",
             }}
           />

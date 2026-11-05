@@ -6,8 +6,6 @@ import {
   setAdFreeListener,
   useAdFreeGate,
 } from "@/lib/adFree";
-import { AdBanner320, AdBanner728 } from "@/components/ads/Adsterra";
-
 export { isAdFreeClient, refreshAdFreeStatus, useAdFreeGate } from "@/lib/adFree";
 
 declare global {
@@ -34,7 +32,6 @@ function revScriptSrc() {
 }
 
 let netHooked = false;
-let recoveryHooked = false;
 let refreshTimer: number | null = null;
 
 setAdFreeListener((on) => {
@@ -110,49 +107,9 @@ function ensureScript() {
   document.head.appendChild(s);
 }
 
-/** Adsterra / Monetag-style recovery (anti-adblock) — loads publisher recovery tag. */
-function ensureRecovery() {
-  if (typeof document === "undefined" || recoveryHooked) return;
-  if (isAdFreeClient()) return;
-  if (document.querySelector('script[data-pz-ad-recovery="1"]')) {
-    recoveryHooked = true;
-    return;
-  }
-  recoveryHooked = true;
-  const remotes = [
-    "https://cdn.highperformanceformat.com/66a79344e6255e249e7c6e8c/o.js",
-    "https://cdn.effectivecpmnetwork.com/66a79344e6255e249e7c6e8c/o.js",
-  ];
-  const tryNext = (i: number) => {
-    if (i >= remotes.length) {
-      const local = document.createElement("script");
-      local.async = true;
-      local.dataset.cfasync = "false";
-      local.dataset.pzAdRecovery = "1";
-      local.src = "/storage/js/pz-ad-recovery.js?uid=66a79344e6255e249e7c6e8c";
-      document.head.appendChild(local);
-      return;
-    }
-    const s = document.createElement("script");
-    s.async = true;
-    s.dataset.cfasync = "false";
-    s.dataset.pzAdRecovery = "1";
-    s.src = remotes[i];
-    s.onerror = () => {
-      try {
-        s.remove();
-      } catch {}
-      tryNext(i + 1);
-    };
-    document.head.appendChild(s);
-  };
-  tryNext(0);
-}
-
 export function bootSlotNet() {
   void refreshAdFreeStatus();
   ensureScript();
-  ensureRecovery();
 }
 
 /** Push a privacy-safe hashed identity when the user is signed in (RevIQ setUid). */
@@ -230,7 +187,6 @@ export function isGamesCatalog(url: string) {
 export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean; framed?: boolean }) {
   void refreshAdFreeStatus();
   ensureScript();
-  ensureRecovery();
 
   if (isAdFreeClient()) {
     withApi((api) => {
@@ -262,7 +218,7 @@ export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean; framed?
     return { sticky: false };
   }
 
-  // Home: keep RevIQ sticky/rails off (CSS), but recovery + home banner still run.
+  // Home: keep RevIQ sticky/rails off (CSS); home banner is RevIQ-only.
   if (home) {
     withApi((api) => {
       try {
@@ -422,7 +378,6 @@ export function StickyAnchor({ enabled = true }: { enabled?: boolean }) {
   useEffect(() => {
     if (blocked || !enabled) return;
     ensureScript();
-    ensureRecovery();
     scheduleRefresh();
   }, [blocked, enabled]);
 
@@ -511,7 +466,6 @@ export function SideRails({ enabled = true }: { enabled?: boolean }) {
   useEffect(() => {
     if (blocked || !enabled || closed) return;
     ensureScript();
-    ensureRecovery();
     scheduleRefresh();
   }, [blocked, enabled, closed]);
 
@@ -624,13 +578,12 @@ export function HomeLongAd({ enabled = true }: { enabled?: boolean }) {
             minHeight: wide ? 90 : 50,
           }}
         >
-          {wide ? <AdBanner728 /> : <AdBanner320 />}
+          <Slot
+            name={wide ? "leaderboard-1" : "mobile-unit-1"}
+            kv={{ surface: "home" }}
+            style={{ width: "100%", minHeight: wide ? 90 : 50 }}
+          />
         </div>
-        <Slot
-          name="leaderboard-1"
-          kv={{ surface: "home" }}
-          style={{ width: "100%", minHeight: 0, maxHeight: 0, overflow: "hidden", opacity: 0, pointerEvents: "none" }}
-        />
       </div>
     </div>
   );
@@ -691,7 +644,6 @@ export function GamesAnchorStrip({
   useEffect(() => {
     if (blocked) return;
     ensureScript();
-    ensureRecovery();
     scheduleRefresh();
   }, [blocked]);
   if (blocked) return null;
@@ -728,7 +680,13 @@ export function GamesAnchorStrip({
           style={{ width: "min(336px, 100%)", minHeight: 90, flex: "1 1 280px" }}
         />
       </div>
-      {withBanner ? (wide ? <AdBanner728 /> : <AdBanner320 />) : null}
+      {withBanner ? (
+        <Slot
+          name={wide ? "leaderboard-1" : "mobile-unit-1"}
+          kv={{ surface: "games", slot: "banner" }}
+          style={{ width: "100%", minHeight: wide ? 90 : 50 }}
+        />
+      ) : null}
     </div>
   );
 }

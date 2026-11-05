@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Search, Plus, Star, MoreVertical, X, Trash2, Share2, Copy, Check, Upload } from "lucide-react";
 import { requestSyncSoon } from "@/lib/settingsSync";
 import { AdFeedStrip, AdPageStack } from "@/components/ads/Units";
-import { armAdAudio } from "@/lib/exoclick";
+import { armAdAudio, preloadAnyClip } from "@/components/ads/AnyClipPlayer";
 import { hrefs, marks } from "@/lib/uiMarks";
 import ObfuscatedText from "./ObfuscatedText";
 
@@ -280,6 +280,7 @@ export default function AppsPage({ onNavigate }: AppsPageProps) {
 
   const handleOpen = useCallback((app: App) => {
     armAdAudio();
+    void preloadAnyClip();
     if (!onNavigate) return;
     if (app.external || app.url.startsWith("petezah://") || app.url.includes("docs.google.com/forms")) {
       onNavigate(app.url);

@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { flushSync } from "react-dom";
 import { Lock, Monitor, ExternalLink, Loader2, Sparkles, Maximize2 } from "lucide-react";
 import { setPendingAuth } from "@/lib/authPending";
-import { armAdAudio, runInterstitial, CONTAINER_ID } from "@/lib/exoclick";
+import { InterstitialOverlay } from "@/components/InterstitialAdGate";
+import { armAdAudio, preloadAnyClip, runRevIqInterstitial } from "@/components/ads/AnyClipPlayer";
 
 export default function FirefoxVmPage({ onNavigate }: { onNavigate: (url: string) => void }) {
   const [authed, setAuthed] = useState(false);
@@ -48,9 +49,10 @@ export default function FirefoxVmPage({ onNavigate }: { onNavigate: (url: string
   async function launchVm() {
     if (!ready || launching) return;
     armAdAudio();
+    void preloadAnyClip();
     flushSync(() => setLaunching(true));
     try {
-      await runInterstitial("vm");
+      await runRevIqInterstitial("vm");
     } catch {}
     try {
       sessionStorage.setItem("pz-vm-return", "1");
@@ -238,7 +240,7 @@ export default function FirefoxVmPage({ onNavigate }: { onNavigate: (url: string
           data-pz-content-frame="1"
           style={{ background: "#070b12" }}
         >
-          <div id={CONTAINER_ID} data-pz-ad-slot="1" style={{ position: "absolute", inset: 0 }} />
+          <InterstitialOverlay phase="ad" title="Desktop" canSkip={false} />
         </div>
       ) : null}
     </div>
