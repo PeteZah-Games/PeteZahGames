@@ -12,8 +12,8 @@ import { isAdFreeClient } from "@/lib/adFree";
 type Context = "game" | "app" | "vm";
 export type InterstitialPhase = "checking" | "ad" | "loading" | "ready";
 
-const AD_HARD_MS = 14000;
-const SKIP_AFTER_MS = 2500;
+const AD_HARD_MS = 20000;
+const SKIP_AFTER_MS = 3500;
 
 export function useInterstitialUnlock(context: Context, enabled = true) {
   const [unlocked, setUnlocked] = useState(!enabled);
@@ -203,16 +203,25 @@ export function InterstitialOverlay({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            pointerEvents: "none",
+            pointerEvents: "auto",
+            visibility: "visible",
           }}
         >
           <div
             id="reviq-anyclip-aio-widget"
+            pubname="2731"
+            widgetname="001Te000004ZYO7IAO_M13894"
+            data-pubname="2731"
+            data-widgetname="001Te000004ZYO7IAO_M13894"
             style={{
               width: "min(640px, 94vw)",
               height: "min(360px, 56vw)",
               maxHeight: 360,
+              minHeight: 200,
               pointerEvents: "auto",
+              background: "#000",
+              borderRadius: 12,
+              overflow: "hidden",
             }}
           />
         </div>
