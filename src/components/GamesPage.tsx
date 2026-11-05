@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Dices, Plus, Star, MoreVertical, X, Trash2, Share2, Copy, Check, Upload, ChevronLeft, ChevronRight, RefreshCw, Crown, Pencil } from "lucide-react";
 import { requestSyncSoon } from "@/lib/settingsSync";
@@ -1064,27 +1064,43 @@ export default function GamesPage({ onNavigate, adminEdit = false, initialQuery 
               <div className="pt-1 pb-2">
                 <GamesAnchorStrip withBanner />
               </div>
-              <div className="grid gap-3 cat-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}>
-                {visible.map((game, i) => (
-                  <div key={game.id} style={{ display: "contents" }}>
-                    <GameCard
-                      game={game}
-                      isFav={favorites.includes(game.id)}
-                      priority={i < 12}
-                      index={i}
-                      onPlay={() => handlePlay(game)}
-                      onOptions={() => setOptionsGame(game)}
-                    />
-                    {(i + 1) % 8 === 0 && i + 1 < visible.length ? (
-                      <div style={{ gridColumn: "1 / -1" }}>
-                        <AdFeedStrip />
-                        {(i + 1) % 16 === 0 ? <GamesAnchorStrip /> : null}
-                        {(i + 1) % 24 === 0 ? <GamesAnchorStrip withBanner /> : null}
+              {(() => {
+                const CHUNK = 18;
+                const chunks: typeof visible[] = [];
+                for (let i = 0; i < visible.length; i += CHUNK) {
+                  chunks.push(visible.slice(i, i + CHUNK));
+                }
+                return chunks.map((chunk, ci) => {
+                  const base = ci * CHUNK;
+                  const last = ci === chunks.length - 1;
+                  return (
+                    <Fragment key={`games-chunk-${ci}`}>
+                      <div
+                        className="grid gap-3 cat-grid"
+                        style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}
+                      >
+                        {chunk.map((game, i) => (
+                          <GameCard
+                            key={game.id}
+                            game={game}
+                            isFav={favorites.includes(game.id)}
+                            priority={base + i < 12}
+                            index={base + i}
+                            onPlay={() => handlePlay(game)}
+                            onOptions={() => setOptionsGame(game)}
+                          />
+                        ))}
                       </div>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
+                      {!last ? (
+                        <div className="w-full py-2">
+                          <AdFeedStrip />
+                          {(ci + 1) % 2 === 0 ? <GamesAnchorStrip /> : null}
+                        </div>
+                      ) : null}
+                    </Fragment>
+                  );
+                });
+              })()}
               {visible.length >= 8 ? (
                 <div className="pt-3 pb-1">
                   <AdFeedStrip />

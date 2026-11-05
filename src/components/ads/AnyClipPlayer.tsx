@@ -3,7 +3,9 @@ const WINDOW_MS = 5 * 60 * 1000;
 const HOST_ID = "reviq-anyclip-aio-widget";
 const PUB = "2731";
 const WIDGET = "001Te000004ZYO7IAO_M13894";
+/** Self-hosted so Lightspeed stays same-origin; sibling module.css.js must sit next to it. */
 const SRC = "/assets/anyclip/lre.js";
+const CSS_MODULE = "/assets/anyclip/lre.js.module.css.js";
 const READY_WAIT_MS = 4500;
 const PLAY_AFTER_READY_MS = 7000;
 const HARD_CAP_MS = 12000;
@@ -83,6 +85,14 @@ export function preloadAnyClip() {
         link.dataset.pzAnyclipPreload = "1";
         document.head.appendChild(link);
       }
+      if (!document.querySelector('link[data-pz-anyclip-css-preload="1"]')) {
+        const css = document.createElement("link");
+        css.rel = "preload";
+        css.as = "script";
+        css.href = CSS_MODULE;
+        css.dataset.pzAnyclipCssPreload = "1";
+        document.head.appendChild(css);
+      }
     } catch {}
 
     try {
@@ -105,11 +115,13 @@ export function preloadAnyClip() {
     } catch {}
 
     try {
-      const res = await fetch(SRC, { cache: "force-cache", credentials: "same-origin" });
-      if (res.ok) {
-        await res.blob();
-        scriptCached = true;
-      }
+      await Promise.all(
+        [SRC, CSS_MODULE].map(async (href) => {
+          const res = await fetch(href, { cache: "force-cache", credentials: "same-origin" });
+          if (res.ok) await res.blob();
+        })
+      );
+      scriptCached = true;
     } catch {}
 
     try {
@@ -201,9 +213,6 @@ export function playAnyClipAd(): Promise<"shown" | "skipped"> {
       script.dataset.pzAnyclip = "1";
       script.setAttribute("pubname", PUB);
       script.setAttribute("widgetname", WIDGET);
-      try {
-        (script as any).__original_src = location.origin + SRC;
-      } catch {}
       script.onerror = () => finish("skipped");
       script.onload = () => {
         scriptCached = true;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Plus, Star, MoreVertical, X, Trash2, Share2, Copy, Check, Upload } from "lucide-react";
 import { requestSyncSoon } from "@/lib/settingsSync";
@@ -318,19 +318,41 @@ export default function AppsPage({ onNavigate }: AppsPageProps) {
             </div>
           ) : (
             <>
-              <div className="grid gap-3 apps-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}>
-                {filtered.map((app, i) => (
-                  <div key={app.id} style={{ display: "contents" }}>
-                    <AppCard app={app} isFav={favorites.includes(app.id)} index={i}
-                      onOpen={() => handleOpen(app)} onOptions={() => setOptionsApp(app)} />
-                    {(i + 1) % 10 === 0 && i + 1 < filtered.length ? (
-                      <div style={{ gridColumn: "1 / -1" }}>
-                        <AdFeedStrip />
+              {(() => {
+                const CHUNK = 18;
+                const chunks: typeof filtered[] = [];
+                for (let i = 0; i < filtered.length; i += CHUNK) {
+                  chunks.push(filtered.slice(i, i + CHUNK));
+                }
+                return chunks.map((chunk, ci) => {
+                  const base = ci * CHUNK;
+                  const last = ci === chunks.length - 1;
+                  return (
+                    <Fragment key={`apps-chunk-${ci}`}>
+                      <div
+                        className="grid gap-3 apps-grid"
+                        style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}
+                      >
+                        {chunk.map((app, i) => (
+                          <AppCard
+                            key={app.id}
+                            app={app}
+                            isFav={favorites.includes(app.id)}
+                            index={base + i}
+                            onOpen={() => handleOpen(app)}
+                            onOptions={() => setOptionsApp(app)}
+                          />
+                        ))}
                       </div>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
+                      {!last ? (
+                        <div className="w-full py-2">
+                          <AdFeedStrip />
+                        </div>
+                      ) : null}
+                    </Fragment>
+                  );
+                });
+              })()}
               {filtered.length >= 8 ? (
                 <div className="pt-3 pb-1">
                   <AdFeedStrip />

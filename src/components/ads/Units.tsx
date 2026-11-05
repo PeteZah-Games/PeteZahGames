@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { hrefs, isGHref, isGvHref } from "@/lib/uiMarks";
 import {
   isAdFreeClient,
@@ -589,21 +589,55 @@ export function HomeLongAd({ enabled = true }: { enabled?: boolean }) {
   );
 }
 
+function useSoftCollapse(rootSel: string, enabled: boolean, waitMs = 2800) {
+  const filled = useFilled(rootSel, enabled);
+  const [giveUp, setGiveUp] = useState(false);
+  useEffect(() => {
+    if (!enabled || filled) {
+      setGiveUp(false);
+      return;
+    }
+    const t = window.setTimeout(() => setGiveUp(true), waitMs);
+    return () => window.clearTimeout(t);
+  }, [enabled, filled, waitMs]);
+  return { filled, collapsed: !filled && giveUp };
+}
+
 export function AdFeedStrip() {
   const blocked = useAdFreeGate();
+  const idRef = useRef(`pz-feed-${Math.random().toString(36).slice(2, 9)}`);
+  const { filled, collapsed } = useSoftCollapse(`[data-pz-feed-id="${idRef.current}"]`, !blocked);
   useEffect(() => {
     if (blocked) return;
     ensureScript();
     scheduleRefresh();
   }, [blocked]);
   if (blocked) return null;
+  const open = filled || !collapsed;
   return (
-    <div data-pz-ad-slot="1" data-ad-slot="feed" style={{ width: "100%", padding: "8px 0" }}>
+    <div
+      data-pz-ad-slot="1"
+      data-ad-slot="feed"
+      data-pz-feed-id={idRef.current}
+      style={{
+        width: "100%",
+        padding: open ? "8px 0" : 0,
+        overflow: open ? "visible" : "hidden",
+      }}
+    >
       <DesktopOnly>
-        <Slot name="leaderboard-1" style={{ width: "100%", minHeight: 70 }} kv={{ surface: "feed" }} />
+        <Slot
+          name="leaderboard-1"
+          style={{ width: "100%", minHeight: open ? 70 : 0 }}
+          kv={{ surface: "feed" }}
+        />
       </DesktopOnly>
       <MobileOnly>
-        <Slot name="mobile-unit-1" style={{ width: "100%", minHeight: 80 }} kv={{ surface: "feed" }} />
+        <Slot
+          name="mobile-unit-1"
+          style={{ width: "100%", minHeight: open ? 80 : 0 }}
+          kv={{ surface: "feed" }}
+        />
       </MobileOnly>
     </div>
   );
@@ -633,7 +667,7 @@ export function AdPageStack({ dense = false }: { dense?: boolean }) {
   );
 }
 
-/** Extra in-flow anchors for the games catalog grid. */
+/** Extra in-flow anchors for the games catalog — outside the card grid. */
 export function GamesAnchorStrip({
   withBanner = false,
 }: {
@@ -641,23 +675,29 @@ export function GamesAnchorStrip({
 }) {
   const blocked = useAdFreeGate();
   const wide = useMq("(min-width: 760px)");
+  const idRef = useRef(`pz-ganchors-${Math.random().toString(36).slice(2, 9)}`);
+  const { filled, collapsed } = useSoftCollapse(`[data-pz-ganchors-id="${idRef.current}"]`, !blocked);
   useEffect(() => {
     if (blocked) return;
     ensureScript();
     scheduleRefresh();
   }, [blocked]);
   if (blocked) return null;
+  const open = filled || !collapsed;
+  const slotMin = open ? 90 : 0;
   return (
     <div
       data-pz-ad-slot="1"
       data-ad-slot="games-anchors"
+      data-pz-ganchors-id={idRef.current}
       style={{
         width: "100%",
-        padding: "10px 0 6px",
+        padding: open ? "10px 0 6px" : 0,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        gap: 10,
+        gap: open ? 10 : 0,
+        overflow: open ? "visible" : "hidden",
       }}
     >
       <div
@@ -672,19 +712,19 @@ export function GamesAnchorStrip({
         <Slot
           name="anchor"
           kv={{ surface: "games", slot: "mid-a" }}
-          style={{ width: "min(336px, 100%)", minHeight: 90, flex: "1 1 280px" }}
+          style={{ width: "min(336px, 100%)", minHeight: slotMin, flex: "1 1 280px" }}
         />
         <Slot
           name="anchor"
           kv={{ surface: "games", slot: "mid-b" }}
-          style={{ width: "min(336px, 100%)", minHeight: 90, flex: "1 1 280px" }}
+          style={{ width: "min(336px, 100%)", minHeight: slotMin, flex: "1 1 280px" }}
         />
       </div>
       {withBanner ? (
         <Slot
           name={wide ? "leaderboard-1" : "mobile-unit-1"}
           kv={{ surface: "games", slot: "banner" }}
-          style={{ width: "100%", minHeight: wide ? 90 : 50 }}
+          style={{ width: "100%", minHeight: open ? (wide ? 90 : 50) : 0 }}
         />
       ) : null}
     </div>
