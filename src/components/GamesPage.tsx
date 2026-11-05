@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Search, Dices, Plus, Star, MoreVertical, X, Trash2, Share2, Copy, Check, Upload, ChevronLeft, ChevronRight, RefreshCw, Crown, Pencil } from "lucide-react";
 import { requestSyncSoon } from "@/lib/settingsSync";
 import { armAdAudio } from "@/lib/exoclick";
-import { AdFeedStrip, AdPageStack } from "@/components/ads/Units";
+import { AdFeedStrip, AdPageStack, GamesAnchorStrip } from "@/components/ads/Units";
+import { AdNativeBar, AdResponsiveBanner } from "@/components/ads/Adsterra";
 import { originHttpHost } from "@/lib/siteOrigin";
 import { resolveGameViaHref } from "@/lib/proxyTarget";
 import { normalizeGameVia, type GameVia } from "@/lib/mochiPath";
@@ -1060,6 +1061,9 @@ export default function GamesPage({ onNavigate, adminEdit = false, initialQuery 
                   <ObfuscatedText as="span">{marks.e()}</ObfuscatedText>
                 </h2>
               )}
+              <div className="pt-1 pb-2">
+                <GamesAnchorStrip withBanner />
+              </div>
               <div className="grid gap-3 cat-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}>
                 {visible.map((game, i) => (
                   <div key={game.id} style={{ display: "contents" }}>
@@ -1071,9 +1075,11 @@ export default function GamesPage({ onNavigate, adminEdit = false, initialQuery 
                       onPlay={() => handlePlay(game)}
                       onOptions={() => setOptionsGame(game)}
                     />
-                    {(i + 1) % 12 === 0 && i + 1 < visible.length ? (
+                    {(i + 1) % 8 === 0 && i + 1 < visible.length ? (
                       <div style={{ gridColumn: "1 / -1" }}>
                         <AdFeedStrip />
+                        {(i + 1) % 16 === 0 ? <GamesAnchorStrip /> : null}
+                        {(i + 1) % 24 === 0 ? <AdResponsiveBanner exo={false} /> : null}
                       </div>
                     ) : null}
                   </div>
@@ -1082,8 +1088,12 @@ export default function GamesPage({ onNavigate, adminEdit = false, initialQuery 
               {visible.length >= 8 ? (
                 <div className="pt-3 pb-1">
                   <AdFeedStrip />
+                  <GamesAnchorStrip />
                 </div>
               ) : null}
+              <div className="pt-2 pb-1">
+                <AdNativeBar />
+              </div>
               <div className="pt-4 pb-2">
                 <AdPageStack dense />
               </div>

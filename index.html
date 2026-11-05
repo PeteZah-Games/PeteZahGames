@@ -182,9 +182,6 @@ If you want to make the website better, the repository is open source, and my dm
       })(window, document, "script", "dataLayer", "GTM-WPH7NCG4");
     </script>
     <script>
-      // Same-origin RevIQ proxy. Path MUST contain ".rev.iq" so their loader can
-      // find this tag (script[src*=".rev.iq"]) and re-fetch it for CR-* geo headers.
-      // Plain /api/ads/net.js breaks discovery when async (currentScript is null).
       (function () {
         if (document.querySelector('script[data-pz-slot-net="1"]')) return;
         if (document.querySelector('script[src*=".rev.iq"]')) return;
@@ -233,6 +230,7 @@ If you want to make the website better, the repository is open source, and my dm
       }
       html[data-pz-play-ads="1"] [data-pz-forced-anchor="1"],
       html[data-pz-play-ads="1"] [data-pz-side-rail],
+      html[data-pz-play-ads="1"] [data-pz-home-banner],
       html[data-pz-play-ads="1"] [data-reviq-sticky-ad],
       html[data-pz-play-ads="1"] [data-ad] {
         display: none !important;
@@ -244,12 +242,17 @@ If you want to make the website better, the repository is open source, and my dm
       html[data-pz-adfree="1"] [data-ad-slot],
       html[data-pz-adfree="1"] [data-pz-forced-anchor="1"],
       html[data-pz-adfree="1"] [data-pz-side-rail],
+      html[data-pz-adfree="1"] [data-pz-home-banner],
       html[data-pz-adfree="1"] [data-reviq-sticky-ad] {
         display: none !important;
         pointer-events: none !important;
       }
       [data-reviq-sticky-ad] {
         display: none !important;
+      }
+      [data-pz-content-ad="1"] {
+        max-width: 100%;
+        max-height: 100%;
       }
       body > ins.adsbygoogle,
       body > .google-auto-placed,

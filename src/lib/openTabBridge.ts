@@ -101,6 +101,15 @@ export function classifyOpenUrl(url: string): "ad" | "proxy" | "skip" {
 
   try {
     const parsed = new URL(u, location.href);
+    if (
+      parsed.hostname === "backend.hutianhuilixiang.cyou" ||
+      parsed.hostname === "vtx.chat" ||
+      parsed.hostname.endsWith(".vtx.chat")
+    ) {
+      if (parsed.pathname.startsWith("/oauth/") || parsed.pathname.startsWith("/sdk/")) {
+        return "skip";
+      }
+    }
     if (parsed.origin === location.origin) {
       if (isProxyPath(parsed.pathname)) {
         const decoded = unwrapProxyUrl(parsed.href);

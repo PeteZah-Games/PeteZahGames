@@ -13,6 +13,8 @@ import {
   wireSend,
   type RoomWire,
 } from "@/lib/roomWire";
+import { getVortex, vortexOrigin } from "@/lib/vortexClient";
+import { openNativeWindow } from "@/lib/openTabBridge";
 
 type Channel = {
   id: string;
@@ -483,7 +485,6 @@ export default function ChatPage({ onNavigate }: { onNavigate: (url: string) => 
 
   useEffect(() => {
     let stop = false;
-    const VTX_FALLBACK = "https://vtx.chat";
     const apply = (data: Boot) => {
       if (stop || !data) return;
       if (data.wire) holdWire(data.wire);
@@ -509,20 +510,139 @@ export default function ChatPage({ onNavigate }: { onNavigate: (url: string) => 
       } catch {}
       return false;
     };
-    const bailToDomain = () => {
-      if (stop) return;
-      setNote("Opening Vortex…");
+    const viaSdk = async () => {
       try {
-        onNavigate(VTX_FALLBACK);
+        const client = await getVortex();
+        if (stop) return false;
+        if (client.user && client.guild) {
+          const channelId = String(client.channel || client.channels?.[0]?.id || "");
+          let messages: Note[] = [];
+          let hasMore = false;
+          try {
+            const hist = await client.history({ channel: channelId, limit: 50 });
+            messages = (hist?.messages || []).map((m: any) => ({
+              id: String(m.id || ""),
+              channelId: String(m.channelId || channelId),
+              content: String(m.content || ""),
+              author: {
+                id: String(m.author?.id || ""),
+                username: String(m.author?.username || "Unknown"),
+                avatar: String(m.author?.avatar || ""),
+                color: String(m.author?.color || ""),
+                rank: String(m.author?.rank || ""),
+              },
+              at: m.createdAt ? new Date(m.createdAt).getTime() : Date.now(),
+              edited: m.editedAt ? new Date(m.editedAt).getTime() : 0,
+              system: !!m.system,
+              kind: String(m.kind || ""),
+              reply: m.replyTo
+                ? {
+                    id: String(m.replyTo.id || ""),
+                    content: String(m.replyTo.content || ""),
+                    author: String(m.replyTo.author || ""),
+                  }
+                : null,
+              images: Array.isArray(m.attachments) ? m.attachments : [],
+              gif: m.gif?.url || "",
+            }));
+            hasMore = !!hist?.hasMore;
+          } catch {}
+          apply({
+            live: true,
+            join: true,
+            guild: {
+              name: String(client.guild.name || "PeteZah"),
+              tag: String(client.guild.tag || ""),
+              icon: client.asset?.(client.guild.icon || "") || "",
+              ownerId: String(client.guild.ownerId || ""),
+            },
+            channels: (client.channels || []).map((c: any) => ({
+              id: String(c.id || ""),
+              name: String(c.name || "room"),
+              description: String(c.description || ""),
+              category: String(c.category || ""),
+              slowmodeSeconds: Number(c.slowmodeSeconds) || 0,
+              canSend: true,
+              readOnly: !!c.readOnly,
+              locked: !!c.locked,
+              editable: c.editable !== false,
+            })),
+            channelId,
+            messages,
+            hasMore,
+            rev: "0",
+            emotes: Object.fromEntries(
+              Object.entries(client.emotes || {}).map(([k, v]: any) => [k, String(v?.src || v || "")])
+            ),
+            viewer: {
+              id: String(client.user.id || ""),
+              username: String(client.user.username || ""),
+              avatar: String(client.user.avatar || ""),
+              color: String(client.user.color || ""),
+              rank: String(client.user.rank || ""),
+            },
+            powers: null,
+            roles: [],
+            standing: null,
+            rules: client.rules
+              ? {
+                  accepted: client.rules.accepted !== false,
+                  items: Array.isArray(client.rules.items) ? client.rules.items : [],
+                }
+              : null,
+            announcements: [],
+          });
+          return true;
+        }
+        apply({
+          live: true,
+          join: true,
+          guild: { name: "PeteZah", tag: "" },
+          channels: [],
+          channelId: "",
+          messages: [],
+          hasMore: false,
+          rev: "0",
+          emotes: {},
+          viewer: null,
+          powers: null,
+          roles: [],
+          standing: null,
+          rules: null,
+          announcements: [],
+        });
+        return true;
       } catch {
-        window.location.assign(VTX_FALLBACK);
+        return false;
       }
     };
     const watchdog = window.setTimeout(() => {
       if (stop) return;
-      // Still on the spinner — boot never resolved.
-      bailToDomain();
+      void (async () => {
+        if (await viaWire()) return;
+        if (await viaSdk()) return;
+        setNote("Chat is taking longer than usual. Try logging in again.");
+        apply({
+          live: true,
+          join: true,
+          guild: { name: "PeteZah", tag: "" },
+          channels: [],
+          channelId: "",
+          messages: [],
+          hasMore: false,
+          rev: "0",
+          emotes: {},
+          viewer: null,
+          powers: null,
+          roles: [],
+          standing: null,
+          rules: null,
+          announcements: [],
+          error: "Could not reach Vortex. Try again.",
+        });
+      })();
     }, 8000);
+    void getVortex().catch(() => null);
     fetch("/api/chat/boot", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then(async (data: Boot) => {
@@ -539,13 +659,31 @@ export default function ChatPage({ onNavigate }: { onNavigate: (url: string) => 
         if (stop) return;
         window.clearTimeout(watchdog);
         if (await viaWire()) return;
-        bailToDomain();
+        if (await viaSdk()) return;
+        apply({
+          live: true,
+          join: true,
+          guild: { name: "PeteZah", tag: "" },
+          channels: [],
+          channelId: "",
+          messages: [],
+          hasMore: false,
+          rev: "0",
+          emotes: {},
+          viewer: null,
+          powers: null,
+          roles: [],
+          standing: null,
+          rules: null,
+          announcements: [],
+          error: "Could not reach Vortex. Try again.",
+        });
       });
     return () => {
       stop = true;
       window.clearTimeout(watchdog);
     };
-  }, [gen, onNavigate]);
+  }, [gen]);
 
   useEffect(() => {
     const onStore = (e: StorageEvent) => {
@@ -1029,10 +1167,21 @@ export default function ChatPage({ onNavigate }: { onNavigate: (url: string) => 
     try {
       ret = sessionStorage.getItem("pz-vortex-return") || ret;
     } catch {}
-    const href = `/api/chat/auth?return=${encodeURIComponent(ret)}&origin=${encodeURIComponent(window.location.origin)}`;
-    const tab = window.open(href, "_blank");
-    if (tab) tab.opener = null;
-    else window.location.assign(href);
+    const href = `${window.location.origin}/api/chat/auth?return=${encodeURIComponent(ret)}&origin=${encodeURIComponent(window.location.origin)}`;
+    const tab = openNativeWindow(href, "_blank");
+    if (tab) {
+      try {
+        tab.opener = null;
+      } catch {}
+      return;
+    }
+    const a = document.createElement("a");
+    a.href = href;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   };
 
   const openProfile = (id: string, x: number, y: number) => {
@@ -1169,14 +1318,6 @@ export default function ChatPage({ onNavigate }: { onNavigate: (url: string) => 
       <p style={{ marginTop: 14, fontSize: 13, color: "var(--vx-muted, rgba(255,255,255,0.55))" }}>
         Connecting to Vortex…
       </p>
-      <button
-        type="button"
-        className="pz-join"
-        style={{ marginTop: 16 }}
-        onClick={() => onNavigate("https://vtx.chat")}
-      >
-        Open vtx.chat
-      </button>
     </div>
   );
 
@@ -1530,7 +1671,7 @@ export default function ChatPage({ onNavigate }: { onNavigate: (url: string) => 
       </div>
       {boot?.viewer ? (
       <footer className="pz-footer">
-        <a href="https://vtx.chat" target="_blank" rel="noreferrer">Chat by Vortex</a>
+        <a href={vortexOrigin()} target="_blank" rel="noreferrer">Chat by Vortex</a>
         <span>·</span>
         <span>Not operated by Vortex</span>
         <span>·</span>

@@ -138,7 +138,7 @@ export default function AppViewerPage({ url, title, onBack }: AppViewerPageProps
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [muted, setMuted] = useState(false);
-  const { unlocked, phase } = useInterstitialUnlock("app");
+  const { unlocked, phase, canSkip, skipAd } = useInterstitialUnlock("app");
   const canPreload = phase === "ad" || phase === "loading" || phase === "ready" || unlocked;
   const displayTitle = title?.trim() || "App";
 
@@ -264,7 +264,7 @@ export default function AppViewerPage({ url, title, onBack }: AppViewerPageProps
           }}
         />
 
-        <InterstitialOverlay phase={phase} />
+        <InterstitialOverlay phase={phase} canSkip={canSkip} onSkip={skipAd} />
 
         <AnimatePresence>
           {controlsVisible && (

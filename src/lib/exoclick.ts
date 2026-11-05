@@ -4,8 +4,8 @@ import { getSiteOrigin, isSvgShell } from "@/lib/siteOrigin";
 const CONTAINER_ID = "pz-video-ad-root";
 const VAST_BASE = "https://s.magsrv.com/v1/vast.php";
 const VAST_ZONE = "6002278";
-const FILL_WAIT_MS = 5000;
-const HARD_CAP_MS = 90000;
+const FILL_WAIT_MS = 2500;
+const HARD_CAP_MS = 20000;
 const WINDOW_MS = 5 * 60 * 1000;
 const MAX_PER_WINDOW = 1;
 const PLAYS_KEY = "pz-video-ad-ok";
@@ -127,6 +127,10 @@ function loadIma(): Promise<void> {
       throw e;
     });
   return playerAssets;
+}
+
+export function preloadVideoAdAssets() {
+  void loadIma().catch(() => {});
 }
 
 function isFrameSlot(el: HTMLElement) {
@@ -313,7 +317,7 @@ function playViaImaSdk(
 
     const fillWait = window.setTimeout(() => {
       if (!started) finish("error");
-    }, isSvgShell() ? 6000 : FILL_WAIT_MS);
+    }, isSvgShell() ? 3500 : FILL_WAIT_MS);
 
     try {
       ima.settings.setDisableCustomPlaybackForIOS10Plus(true);
@@ -336,8 +340,8 @@ function playViaImaSdk(
         try {
           const mgr = ev.getAdsManager(video, {
             enablePreloading: true,
-            bitrate: 2500,
-            loadVideoTimeout: 12000,
+            bitrate: 1800,
+            loadVideoTimeout: 5000,
           });
           activeAdsManager = mgr;
           mgr.addEventListener(ima.AdEvent.Type.STARTED, () => {
@@ -381,7 +385,7 @@ function playViaImaSdk(
       req.linearAdSlotHeight = h;
       req.nonLinearAdSlotWidth = w;
       req.nonLinearAdSlotHeight = Math.min(150, h);
-      req.vastLoadTimeout = 12000;
+      req.vastLoadTimeout = 5000;
       req.setAdWillAutoPlay(true);
       req.setAdWillPlayMuted(muted);
       try {
@@ -439,7 +443,7 @@ function playSession(myGen: number): Promise<"done" | "skip" | "error"> {
       resolve(result);
     };
 
-    const hard = window.setTimeout(() => finish("skip"), isSvgShell() ? 8000 : HARD_CAP_MS);
+    const hard = window.setTimeout(() => finish("skip"), isSvgShell() ? 5000 : HARD_CAP_MS);
 
     try {
       await loadIma();
@@ -480,7 +484,7 @@ export function playVideoAd(context?: "game" | "app" | "vm"): Promise<"done" | "
       resolve(result);
     };
 
-    const hard = window.setTimeout(() => finish("skip"), isSvgShell() ? 9000 : HARD_CAP_MS + 1500);
+    const hard = window.setTimeout(() => finish("skip"), isSvgShell() ? 6000 : HARD_CAP_MS + 500);
 
     try {
       const result = await playSession(myGen);

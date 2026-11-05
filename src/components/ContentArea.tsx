@@ -111,6 +111,8 @@ interface ContentAreaProps {
   onCloseSplit: () => void;
   zoomLevel?: number;
   contentRef?: RefObject<HTMLDivElement | null>;
+  /** Overlay ads must live inside the content pane so they never cover chrome. */
+  adOverlay?: ReactNode;
 }
 
 interface Preset {
@@ -1576,6 +1578,7 @@ export default function ContentArea({
   onCloseSplit,
   zoomLevel = 100,
   contentRef,
+  adOverlay,
 }: ContentAreaProps) {
   if (!activeTab && tabs.length === 0) {
     return (
@@ -1585,6 +1588,7 @@ export default function ContentArea({
         style={{ overflow: "clip" }}
       >
         <EmptyState />
+        {adOverlay}
       </div>
     );
   }
@@ -1667,6 +1671,7 @@ export default function ContentArea({
           </>
         )}
       </div>
+      {adOverlay}
     </div>
   );
 }

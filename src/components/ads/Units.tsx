@@ -6,6 +6,7 @@ import {
   setAdFreeListener,
   useAdFreeGate,
 } from "@/lib/adFree";
+import { AdBanner320, AdBanner728 } from "@/components/ads/Adsterra";
 
 export { isAdFreeClient, refreshAdFreeStatus, useAdFreeGate } from "@/lib/adFree";
 
@@ -33,6 +34,7 @@ function revScriptSrc() {
 }
 
 let netHooked = false;
+let recoveryHooked = false;
 let refreshTimer: number | null = null;
 
 setAdFreeListener((on) => {
@@ -108,9 +110,49 @@ function ensureScript() {
   document.head.appendChild(s);
 }
 
+/** Adsterra / Monetag-style recovery (anti-adblock) — loads publisher recovery tag. */
+function ensureRecovery() {
+  if (typeof document === "undefined" || recoveryHooked) return;
+  if (isAdFreeClient()) return;
+  if (document.querySelector('script[data-pz-ad-recovery="1"]')) {
+    recoveryHooked = true;
+    return;
+  }
+  recoveryHooked = true;
+  const remotes = [
+    "https://cdn.highperformanceformat.com/66a79344e6255e249e7c6e8c/o.js",
+    "https://cdn.effectivecpmnetwork.com/66a79344e6255e249e7c6e8c/o.js",
+  ];
+  const tryNext = (i: number) => {
+    if (i >= remotes.length) {
+      const local = document.createElement("script");
+      local.async = true;
+      local.dataset.cfasync = "false";
+      local.dataset.pzAdRecovery = "1";
+      local.src = "/storage/js/pz-ad-recovery.js?uid=66a79344e6255e249e7c6e8c";
+      document.head.appendChild(local);
+      return;
+    }
+    const s = document.createElement("script");
+    s.async = true;
+    s.dataset.cfasync = "false";
+    s.dataset.pzAdRecovery = "1";
+    s.src = remotes[i];
+    s.onerror = () => {
+      try {
+        s.remove();
+      } catch {}
+      tryNext(i + 1);
+    };
+    document.head.appendChild(s);
+  };
+  tryNext(0);
+}
+
 export function bootSlotNet() {
   void refreshAdFreeStatus();
   ensureScript();
+  ensureRecovery();
 }
 
 /** Push a privacy-safe hashed identity when the user is signed in (RevIQ setUid). */
@@ -118,7 +160,6 @@ export function setRevIqUid(user: { email?: string | null; username?: string | n
   if (!user) return;
   const e = String(user.email || "").trim();
   const u = String(user.username || "").trim();
-  // Skip junk that produces invalid PPIDs (GPT wants 22–150 chars after hashing path).
   if (!e && !u) return;
   if (e && (e.length < 3 || !e.includes("@"))) return;
   withApi((api) => {
@@ -181,9 +222,15 @@ export function isRailSurface(url: string) {
   return isSoftEarn(url);
 }
 
+export function isGamesCatalog(url: string) {
+  const u = String(url || "");
+  return isGHref(u) && !isGvHref(u);
+}
+
 export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean; framed?: boolean }) {
   void refreshAdFreeStatus();
   ensureScript();
+  ensureRecovery();
 
   if (isAdFreeClient()) {
     withApi((api) => {
@@ -206,7 +253,17 @@ export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean; framed?
     document.documentElement.dataset.pzPlayAds = immersive ? "1" : "0";
   } catch {}
 
-  if (home || quiet || immersive) {
+  if (quiet || immersive) {
+    withApi((api) => {
+      try {
+        api.setAdsEnabled?.(false);
+      } catch {}
+    });
+    return { sticky: false };
+  }
+
+  // Home: keep RevIQ sticky/rails off (CSS), but recovery + home banner still run.
+  if (home) {
     withApi((api) => {
       try {
         api.setAdsEnabled?.(false);
@@ -291,39 +348,52 @@ function MobileOnly({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-export function StickyAnchor({ enabled = true }: { enabled?: boolean }) {
-  const [closed, setClosed] = useState(false);
+const closeBtnStyle: CSSProperties = {
+  position: "absolute",
+  top: -8,
+  right: -8,
+  zIndex: 5,
+  width: 26,
+  height: 26,
+  borderRadius: 999,
+  border: "1px solid hsla(210,30%,80%,0.25)",
+  background: "hsla(220, 28%, 10%, 0.92)",
+  color: "#fff",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 14,
+  fontWeight: 700,
+  lineHeight: 1,
+  pointerEvents: "auto",
+};
+
+function useFilled(rootSel: string, enabled: boolean) {
   const [filled, setFilled] = useState(false);
-  const blocked = useAdFreeGate();
-
-  useEffect(() => {
-    if (blocked || !enabled) return;
-    ensureScript();
-    scheduleRefresh();
-  }, [blocked, enabled]);
-
   useEffect(() => {
     if (!enabled) {
-      setClosed(false);
       setFilled(false);
+      return;
     }
-  }, [enabled]);
-
-  useEffect(() => {
-    if (blocked || !enabled || closed) return;
-    const root = document.querySelector("[data-pz-forced-anchor='1']");
+    const root = document.querySelector(rootSel);
     if (!root) return;
     const check = () => {
-      const slot = root.querySelector("[data-ad]") as HTMLElement | null;
-      if (!slot) return;
-      if (slot.getAttribute("data-ad-status") === "filled") {
-        setFilled(true);
-        return;
-      }
-      const media = slot.querySelector("iframe, img, video");
-      if (media) {
-        const r = (media as HTMLElement).getBoundingClientRect?.();
-        if (r && r.height > 40 && r.width > 40) setFilled(true);
+      const slots = root.querySelectorAll("[data-ad]");
+      for (const slot of Array.from(slots)) {
+        const el = slot as HTMLElement;
+        if (el.getAttribute("data-ad-status") === "filled") {
+          setFilled(true);
+          return;
+        }
+        const media = el.querySelector("iframe, img, video");
+        if (media) {
+          const r = (media as HTMLElement).getBoundingClientRect?.();
+          if (r && r.height > 40 && r.width > 40) {
+            setFilled(true);
+            return;
+          }
+        }
       }
     };
     check();
@@ -334,68 +404,83 @@ export function StickyAnchor({ enabled = true }: { enabled?: boolean }) {
       attributes: true,
       attributeFilter: ["data-ad-status", "style"],
     });
-    const t = window.setInterval(check, 1500);
+    const t = window.setInterval(check, 1200);
     return () => {
       mo.disconnect();
       window.clearInterval(t);
     };
-  }, [blocked, enabled, closed]);
+  }, [rootSel, enabled]);
+  return filled;
+}
+
+/** Bottom-left + bottom-right anchor units, scoped to content pane (not chrome). */
+export function StickyAnchor({ enabled = true }: { enabled?: boolean }) {
+  const [closed, setClosed] = useState(false);
+  const blocked = useAdFreeGate();
+  const filled = useFilled("[data-pz-forced-anchor='1']", !blocked && enabled && !closed);
+
+  useEffect(() => {
+    if (blocked || !enabled) return;
+    ensureScript();
+    ensureRecovery();
+    scheduleRefresh();
+  }, [blocked, enabled]);
+
+  useEffect(() => {
+    if (!enabled) {
+      setClosed(false);
+    }
+  }, [enabled]);
 
   if (blocked || !enabled || closed) return null;
 
   return (
     <div
       data-pz-forced-anchor="1"
+      data-pz-content-ad="1"
       style={{
-        position: "fixed",
-        left: 12,
-        bottom: 12,
-        zIndex: 90,
+        position: "absolute",
+        left: 10,
+        right: 10,
+        bottom: 10,
+        zIndex: 40,
         pointerEvents: "none",
         display: "flex",
-        justifyContent: "flex-start",
-        maxWidth: "min(420px, calc(100vw - 24px))",
+        justifyContent: "space-between",
+        alignItems: "flex-end",
+        gap: 12,
+        maxWidth: "100%",
       }}
     >
       <div
         style={{
           position: "relative",
           pointerEvents: filled ? "auto" : "none",
-          maxWidth: "100%",
+          maxWidth: "min(336px, calc(50% - 6px))",
           borderRadius: 10,
           overflow: "visible",
           boxShadow: filled ? "0 10px 28px rgba(0,0,0,0.35)" : "none",
         }}
       >
         {filled ? (
-          <button
-            type="button"
-            aria-label="Close ad"
-            onClick={() => setClosed(true)}
-            style={{
-              position: "absolute",
-              top: -8,
-              right: -8,
-              zIndex: 5,
-              width: 26,
-              height: 26,
-              borderRadius: 999,
-              border: "1px solid hsla(210,30%,80%,0.25)",
-              background: "hsla(220, 28%, 10%, 0.92)",
-              color: "#fff",
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 14,
-              fontWeight: 700,
-              lineHeight: 1,
-            }}
-          >
+          <button type="button" aria-label="Close ad" onClick={() => setClosed(true)} style={closeBtnStyle}>
             ×
           </button>
         ) : null}
-        <Slot name="anchor" kv={{ surface: "earn" }} style={{ width: "min(336px, 100%)", minHeight: 90 }} />
+        <Slot name="anchor" kv={{ surface: "earn", slot: "bl" }} style={{ width: "min(336px, 100%)", minHeight: 90 }} />
+      </div>
+      <div
+        style={{
+          position: "relative",
+          pointerEvents: filled ? "auto" : "none",
+          maxWidth: "min(336px, calc(50% - 6px))",
+          borderRadius: 10,
+          overflow: "visible",
+          boxShadow: filled ? "0 10px 28px rgba(0,0,0,0.35)" : "none",
+          marginLeft: "auto",
+        }}
+      >
+        <Slot name="anchor" kv={{ surface: "earn", slot: "br" }} style={{ width: "min(336px, 100%)", minHeight: 90 }} />
       </div>
     </div>
   );
@@ -417,74 +502,137 @@ function markRailsClosed() {
   } catch {}
 }
 
+/** Side rails inside the content pane only — never over sidebar / toolbars. */
 export function SideRails({ enabled = true }: { enabled?: boolean }) {
   const [closed, setClosed] = useState(railsClosed);
   const blocked = useAdFreeGate();
+  const filled = useFilled("[data-pz-side-rail]", !blocked && enabled && !closed);
 
   useEffect(() => {
     if (blocked || !enabled || closed) return;
     ensureScript();
+    ensureRecovery();
     scheduleRefresh();
   }, [blocked, enabled, closed]);
 
   if (blocked || !enabled || closed) return null;
 
+  const railShell: CSSProperties = {
+    position: "absolute",
+    top: "50%",
+    transform: "translateY(-50%)",
+    zIndex: 35,
+    width: 160,
+    maxHeight: "70%",
+    overflow: "hidden",
+    pointerEvents: filled ? "auto" : "none",
+  };
+
   return (
     <DesktopOnly>
-      <aside
-        data-pz-side-rail="left"
+      <aside data-pz-side-rail="left" data-pz-content-ad="1" style={{ ...railShell, left: 8 }}>
+        {filled ? (
+          <button
+            type="button"
+            aria-label="Close ads"
+            onClick={() => {
+              markRailsClosed();
+              setClosed(true);
+            }}
+            style={{ ...closeBtnStyle, width: 22, height: 22, fontSize: 12 }}
+          >
+            ×
+          </button>
+        ) : null}
+        <Slot name="left-rail-2" style={{ width: "100%", minHeight: 180 }} kv={{ surface: "rail" }} />
+        <div style={{ height: 10 }} />
+        <Slot name="anchor" style={{ width: "100%", minHeight: 90 }} kv={{ surface: "rail", slot: "left-anchor" }} />
+      </aside>
+      <aside data-pz-side-rail="right" data-pz-content-ad="1" style={{ ...railShell, right: 8 }}>
+        <Slot name="right-rail-2" style={{ width: "100%", minHeight: 200 }} kv={{ surface: "rail" }} />
+        <div style={{ height: 10 }} />
+        <Slot name="anchor" style={{ width: "100%", minHeight: 90 }} kv={{ surface: "rail", slot: "right-anchor" }} />
+      </aside>
+    </DesktopOnly>
+  );
+}
+
+const HOME_AD_KEY = "pz-home-long-ad-closed";
+
+/** Long, centered, dismissible homepage banner — keeps glass chrome intact. */
+export function HomeLongAd({ enabled = true }: { enabled?: boolean }) {
+  const [closed, setClosed] = useState(() => {
+    try {
+      return sessionStorage.getItem(HOME_AD_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const blocked = useAdFreeGate();
+  const wide = useMq("(min-width: 760px)");
+
+  useEffect(() => {
+    if (!enabled) setClosed(false);
+  }, [enabled]);
+
+  if (blocked || !enabled || closed) return null;
+
+  return (
+    <div
+      data-pz-home-banner="1"
+      data-pz-content-ad="1"
+      style={{
+        position: "absolute",
+        left: "50%",
+        bottom: 14,
+        transform: "translateX(-50%)",
+        zIndex: 45,
+        width: "min(728px, calc(100% - 32px))",
+        pointerEvents: "auto",
+      }}
+    >
+      <div
         style={{
-          position: "fixed",
-          left: 8,
-          top: "50%",
-          transform: "translateY(-50%)",
-          zIndex: 80,
-          width: 160,
-          pointerEvents: "auto",
+          position: "relative",
+          borderRadius: 14,
+          overflow: "visible",
+          padding: "8px 10px 10px",
+          background: "hsla(220, 35%, 6%, 0.72)",
+          border: "1px solid hsla(210, 40%, 80%, 0.12)",
+          backdropFilter: "blur(14px)",
+          boxShadow: "0 12px 32px rgba(0,0,0,0.28)",
         }}
       >
         <button
           type="button"
-          aria-label="Close ads"
+          aria-label="Close ad"
           onClick={() => {
-            markRailsClosed();
+            try {
+              sessionStorage.setItem(HOME_AD_KEY, "1");
+            } catch {}
             setClosed(true);
           }}
-          style={{
-            position: "absolute",
-            top: -10,
-            right: -10,
-            zIndex: 2,
-            width: 22,
-            height: 22,
-            borderRadius: 999,
-            border: "1px solid hsla(210,30%,80%,0.25)",
-            background: "hsla(220, 28%, 10%, 0.92)",
-            color: "#fff",
-            cursor: "pointer",
-            fontSize: 12,
-            fontWeight: 700,
-          }}
+          style={{ ...closeBtnStyle, top: -10, right: -10 }}
         >
           ×
         </button>
-        <Slot name="left-rail-2" style={{ width: "100%", minHeight: 180 }} kv={{ surface: "rail" }} />
-      </aside>
-      <aside
-        data-pz-side-rail="right"
-        style={{
-          position: "fixed",
-          right: 8,
-          top: "50%",
-          transform: "translateY(-50%)",
-          zIndex: 80,
-          width: 160,
-          pointerEvents: "auto",
-        }}
-      >
-        <Slot name="right-rail-2" style={{ width: "100%", minHeight: 200 }} kv={{ surface: "rail" }} />
-      </aside>
-    </DesktopOnly>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            width: "100%",
+            minHeight: wide ? 90 : 50,
+          }}
+        >
+          {wide ? <AdBanner728 /> : <AdBanner320 />}
+        </div>
+        <Slot
+          name="leaderboard-1"
+          kv={{ surface: "home" }}
+          style={{ width: "100%", minHeight: 0, maxHeight: 0, overflow: "hidden", opacity: 0, pointerEvents: "none" }}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -528,6 +676,59 @@ export function AdPageStack({ dense = false }: { dense?: boolean }) {
       <MobileOnly>
         <Slot name="mobile-unit-1" style={{ width: "100%", minHeight: 100 }} kv={{ surface: "page" }} />
       </MobileOnly>
+    </div>
+  );
+}
+
+/** Extra in-flow anchors for the games catalog grid. */
+export function GamesAnchorStrip({
+  withBanner = false,
+}: {
+  withBanner?: boolean;
+}) {
+  const blocked = useAdFreeGate();
+  const wide = useMq("(min-width: 760px)");
+  useEffect(() => {
+    if (blocked) return;
+    ensureScript();
+    ensureRecovery();
+    scheduleRefresh();
+  }, [blocked]);
+  if (blocked) return null;
+  return (
+    <div
+      data-pz-ad-slot="1"
+      data-ad-slot="games-anchors"
+      style={{
+        width: "100%",
+        padding: "10px 0 6px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 10,
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          display: "flex",
+          justifyContent: "center",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <Slot
+          name="anchor"
+          kv={{ surface: "games", slot: "mid-a" }}
+          style={{ width: "min(336px, 100%)", minHeight: 90, flex: "1 1 280px" }}
+        />
+        <Slot
+          name="anchor"
+          kv={{ surface: "games", slot: "mid-b" }}
+          style={{ width: "min(336px, 100%)", minHeight: 90, flex: "1 1 280px" }}
+        />
+      </div>
+      {withBanner ? (wide ? <AdBanner728 /> : <AdBanner320 />) : null}
     </div>
   );
 }

@@ -30,6 +30,7 @@ import { setRivetNavigateHandler } from "@/lib/rivet/host";
 import {
   StickyAnchor,
   SideRails,
+  HomeLongAd,
   bootSlotNet,
   syncSurfaceAds,
   setRevIqUid,
@@ -106,6 +107,7 @@ export default function ArcBrowser() {
   const prevUrlRef = useRef(state.focusedTab?.url || "");
   const [stickyOn, setStickyOn] = useState(false);
   const [railsOn, setRailsOn] = useState(false);
+  const [homeAdOn, setHomeAdOn] = useState(false);
 
   useEffect(() => {
     bootSlotNet();
@@ -124,6 +126,7 @@ export default function ArcBrowser() {
     syncSurfaceAds(url, { fromHome, framed });
     setStickyOn(isStickySurface(url, framed));
     setRailsOn(isRailSurface(url) && !isPlaySurface(url, framed));
+    setHomeAdOn(isHomeSurface(url) && !framed);
     prevUrlRef.current = url;
     try {
       if (url.startsWith("petezah://")) sessionStorage.setItem("pz-vortex-return", url.split("?")[0]);
@@ -477,6 +480,13 @@ export default function ArcBrowser() {
             onCloseSplit={state.closeSplit}
             zoomLevel={zoomLevel}
             contentRef={contentRef}
+            adOverlay={
+              <>
+                <StickyAnchor enabled={stickyOn} />
+                <SideRails enabled={railsOn} />
+                <HomeLongAd enabled={homeAdOn} />
+              </>
+            }
           />
           <div style={{ opacity: dimChrome ? 0.45 : 1, transition: "opacity 0.25s ease" }}>
             <StatusBar
@@ -486,8 +496,6 @@ export default function ArcBrowser() {
           </div>
         </main>
       </div>
-      <StickyAnchor enabled={stickyOn} />
-      <SideRails enabled={railsOn} />
       <CustomPromo />
       <DiscordPopup />
       <GlobalAnnouncement onNavigate={state.navigateToUrl} />

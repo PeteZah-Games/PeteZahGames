@@ -170,7 +170,7 @@ export default function GameViewerPage({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [muted, setMuted] = useState(false);
-  const { unlocked, phase, finishLoading, hadAd } = useInterstitialUnlock("game");
+  const { unlocked, phase, finishLoading, hadAd, canSkip, skipAd } = useInterstitialUnlock("game");
 
   useEffect(() => {
     trackSection("lab", {
@@ -358,6 +358,8 @@ export default function GameViewerPage({
           title={displayTitle}
           quickSplash={hadAd}
           onLoadingDone={finishLoading}
+          canSkip={canSkip}
+          onSkip={skipAd}
         />
 
         <AnimatePresence>
