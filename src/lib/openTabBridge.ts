@@ -229,6 +229,28 @@ export function openProxiedTab(url: string) {
   return openNativeWindow(dest);
 }
 
+/** Same-origin Vortex auth tab. Script-opened so the callback can close it. No token leaves this window. */
+export function openAuthWindow(url: string) {
+  const href = String(url || "").trim();
+  if (!href) return null;
+  try {
+    const u = new URL(href, location.origin);
+    if (u.origin !== location.origin || u.pathname !== "/api/chat/auth") return null;
+  } catch {
+    return null;
+  }
+  const w = window as any;
+  const native =
+    typeof w.__pzNativeOpen === "function"
+      ? (w.__pzNativeOpen as typeof window.open)
+      : window.open.bind(window);
+  try {
+    return native(href, "pz-vortex-auth");
+  } catch {
+    return null;
+  }
+}
+
 export function openNativeWindow(url: string, target = "_blank") {
   const href = String(url || "").trim();
   if (!href) return null;

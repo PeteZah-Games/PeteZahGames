@@ -470,24 +470,29 @@ function sendReturn(req, res) {
   const saved = readPack(req.cookies?.pz_vtx) || req.session?.vortexOauth || null;
   const back = JSON.stringify(homeAbsolute(saved?.returnOrigin || callbackOrigin(req), saved?.returnTo));
   const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>Signing in</title></head><body style="margin:0;background:#020810;color:#9aa4b2;font:14px system-ui,sans-serif;display:grid;place-items:center;min-height:100vh"><p>Finishing sign-in…</p><script>
+try{window.opener=null}catch(e){}
 var q=location.search||"";
 var back=${back};
 try{history.replaceState(null,"","/api/chat/callback")}catch(e){}
-var timer=setTimeout(function(){location.replace(back)},12000);
-fetch("/api/chat/finish"+q,{credentials:"include",headers:{Accept:"application/json"},redirect:"manual"}).then(function(r){return r.json().catch(function(){return null})}).then(function(d){if(d&&d.back){back=d.back}else if(d&&d.returnTo){try{back=(d.returnOrigin||location.origin)+"/?m="+encodeURIComponent(d.returnTo)}catch(e){}}}).finally(function(){clearTimeout(timer);location.replace(back)});
+function sameOrigin(url){try{var u=new URL(url,location.href);return u.origin===location.origin&&u.pathname==="/"}catch(e){return false}}
+function ping(){try{localStorage.setItem("pz-vtx-done",String(Date.now()))}catch(e){}try{var ch=new BroadcastChannel("pz-room");ch.postMessage("vtx");ch.close()}catch(e){}}
+function leave(){try{window.close()}catch(e){}setTimeout(function(){if(!window.closed)location.replace(back)},400)}
+var timer=setTimeout(leave,12000);
+fetch("/api/chat/finish"+q,{credentials:"include",headers:{Accept:"application/json"},redirect:"manual"}).then(function(r){return r.json().catch(function(){return null})}).then(function(d){if(d&&typeof d.back==="string"&&sameOrigin(d.back))back=d.back;if(d&&d.loggedIn)ping();else{var p=document.querySelector("p");if(p)p.textContent="Sign-in did not finish. Close this tab and try again."}}).finally(function(){clearTimeout(timer);leave()});
 </script></body></html>`;
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'");
   res.type('html').send(html);
 }
 
-function sendDone(req, res, returnTo, returnOrigin) {
+function sendDone(req, res, returnTo, returnOrigin, loggedIn) {
   const dest = safeReturnTo(returnTo) || 'petezah://chat';
   const origin = returnOrigin || callbackOrigin(req);
   const back = homeAbsolute(origin, dest);
   if (req.headers['sec-fetch-mode'] === 'navigate') return res.redirect(back);
   res.setHeader('Cache-Control', 'no-store');
-  return res.status(200).json({ ok: true, returnTo: dest, returnOrigin: origin, back });
+  return res.status(200).json({ ok: true, loggedIn: !!loggedIn, returnTo: dest, returnOrigin: origin, back });
 }
 
 async function completeLogin(req, res) {
@@ -502,18 +507,23 @@ async function completeLogin(req, res) {
   if (!saved || saved.exp < Date.now() || !sameSecret(state, saved.state) || req.query.error || !code) {
     const why = !saved ? 'missing sign-in cookie' : saved.exp < Date.now() ? 'sign-in cookie expired' : req.query.error ? 'provider returned an error' : 'sign-in state did not match';
     noteError(401, '/api/chat/finish', why);
-    return sendDone(req, res, returnTo, returnOrigin);
+    return sendDone(req, res, returnTo, returnOrigin, false);
   }
+  let loggedIn = false;
   try {
     const tokens = await exchangeCode(code, saved.verifier, redirectUri);
-    if (tokens) saveLink(ensureLinkKey(req), tokens);
+    if (tokens?.accessToken) {
+      saveLink(ensureLinkKey(req), tokens);
+      loggedIn = true;
+    }
   } catch (err) {
     const status = Number(err?.status) || 502;
     const msg = err instanceof Error && err.message && err.message !== 'chat' ? err.message : 'sign-in failed';
     noteError(status, '/api/chat/finish', msg);
   }
-  if (req.session?.save) return req.session.save(() => sendDone(req, res, returnTo, returnOrigin));
-  return sendDone(req, res, returnTo, returnOrigin);
+  const done = () => sendDone(req, res, returnTo, returnOrigin, loggedIn);
+  if (req.session?.save) return req.session.save(done);
+  return done();
 }
 
 const SPANS = new Set([10, 60, 1440, 10080]);

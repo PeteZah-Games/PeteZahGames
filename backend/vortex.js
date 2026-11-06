@@ -459,36 +459,28 @@ export function sanitizeOrigin(raw) {
   }
 }
 
-export function callbackOrigin(req, explicit) {
-  const fromQuery = sanitizeOrigin(explicit ?? req?.query?.origin);
-  if (fromQuery) return fromQuery;
-
-  const fromHeader = sanitizeOrigin(req?.headers?.origin);
-  if (fromHeader) return fromHeader;
-
-  try {
-    const ref = req?.headers?.referer || req?.headers?.referrer;
-    if (ref) {
-      const fromRef = sanitizeOrigin(new URL(String(ref)).origin);
-      if (fromRef) return fromRef;
-    }
-  } catch {}
-
+function originFromHost(req) {
   const host = String(req?.headers?.['x-forwarded-host'] || req?.headers?.host || '')
     .split(',')[0]
     .trim()
     .toLowerCase();
-  if (host) {
-    const hostname = host.split(':')[0];
-    const local = hostname === 'localhost' || hostname === '127.0.0.1';
-    const proto = local
-      ? String(req.headers['x-forwarded-proto'] || '').includes('https') || req.secure
-        ? 'https'
-        : 'http'
-      : 'https';
-    return `${proto}://${host}`;
-  }
+  if (!host) return null;
+  const hostname = host.split(':')[0];
+  const local = hostname === 'localhost' || hostname === '127.0.0.1';
+  const proto = local
+    ? String(req.headers['x-forwarded-proto'] || '').includes('https') || req.secure
+      ? 'https'
+      : 'http'
+    : 'https';
+  return sanitizeOrigin(`${proto}://${host}`);
+}
 
+export function callbackOrigin(req, explicit) {
+  const self = originFromHost(req);
+  const fromQuery = sanitizeOrigin(explicit ?? req?.query?.origin);
+  // Only trust ?origin= when it is the host that actually served this request.
+  if (fromQuery && self && fromQuery === self) return fromQuery;
+  if (self) return self;
   return publicOrigin();
 }
 

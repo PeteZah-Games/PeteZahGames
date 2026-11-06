@@ -1,28 +1,52 @@
 import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 
+function sameOriginHome(url: string) {
+  try {
+    const u = new URL(url, window.location.href);
+    return u.origin === window.location.origin && u.pathname === "/";
+  } catch {
+    return false;
+  }
+}
+
 export default function VortexCallback() {
   useEffect(() => {
+    try {
+      window.opener = null;
+    } catch {}
     const q = window.location.search || "";
-    fetch(`/api/chat/finish${q}`, { credentials: "include", redirect: "manual" })
+    try {
+      history.replaceState(null, "", "/api/chat/callback");
+    } catch {}
+    let back = `${window.location.origin}/?m=${encodeURIComponent("petezah://chat")}`;
+    const leave = () => {
+      try {
+        window.close();
+      } catch {}
+      window.setTimeout(() => {
+        if (!window.closed) window.location.replace(back);
+      }, 400);
+    };
+    const timer = window.setTimeout(leave, 12000);
+    fetch(`/api/chat/finish${q}`, { credentials: "include", headers: { Accept: "application/json" }, redirect: "manual" })
       .then((r) => r.json().catch(() => null))
       .then((d) => {
-        if (typeof d?.back === "string" && /^https?:\/\//i.test(d.back)) {
-          window.location.replace(d.back);
-          return;
+        if (typeof d?.back === "string" && sameOriginHome(d.back)) back = d.back;
+        if (d?.loggedIn) {
+          try {
+            localStorage.setItem("pz-vtx-done", String(Date.now()));
+          } catch {}
+          try {
+            const ch = new BroadcastChannel("pz-room");
+            ch.postMessage("vtx");
+            ch.close();
+          } catch {}
         }
-        const dest =
-          typeof d?.returnTo === "string" && d.returnTo.startsWith("petezah://")
-            ? d.returnTo
-            : "petezah://chat";
-        const origin =
-          typeof d?.returnOrigin === "string" && /^https?:\/\//i.test(d.returnOrigin)
-            ? d.returnOrigin.replace(/\/$/, "")
-            : window.location.origin;
-        window.location.replace(`${origin}/?m=${encodeURIComponent(dest)}`);
       })
-      .catch(() => {
-        window.location.replace(`/?m=${encodeURIComponent("petezah://chat")}`);
+      .finally(() => {
+        window.clearTimeout(timer);
+        leave();
       });
   }, []);
   return (

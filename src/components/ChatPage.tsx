@@ -14,7 +14,7 @@ import {
   type RoomWire,
 } from "@/lib/roomWire";
 import { getVortex, vortexOrigin } from "@/lib/vortexClient";
-import { openNativeWindow } from "@/lib/openTabBridge";
+import { openAuthWindow } from "@/lib/openTabBridge";
 
 type Channel = {
   id: string;
@@ -687,7 +687,7 @@ export default function ChatPage({ onNavigate }: { onNavigate: (url: string) => 
 
   useEffect(() => {
     const onStore = (e: StorageEvent) => {
-      if (e.key === "pz-room-in" && !liveRef.current) setGen((n) => n + 1);
+      if ((e.key === "pz-room-in" || e.key === "pz-vtx-done") && !liveRef.current) setGen((n) => n + 1);
     };
     window.addEventListener("storage", onStore);
     let ch: BroadcastChannel | null = null;
@@ -1168,20 +1168,9 @@ export default function ChatPage({ onNavigate }: { onNavigate: (url: string) => 
       ret = sessionStorage.getItem("pz-vortex-return") || ret;
     } catch {}
     const href = `${window.location.origin}/api/chat/auth?return=${encodeURIComponent(ret)}&origin=${encodeURIComponent(window.location.origin)}`;
-    const tab = openNativeWindow(href, "_blank");
-    if (tab) {
-      try {
-        tab.opener = null;
-      } catch {}
-      return;
-    }
-    const a = document.createElement("a");
-    a.href = href;
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    const tab = openAuthWindow(href);
+    if (tab) return;
+    window.location.assign(href);
   };
 
   const openProfile = (id: string, x: number, y: number) => {
