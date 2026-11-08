@@ -65,7 +65,7 @@ const OPEN_PREFIX = ['/cap/', '/api/verify-email', '/api/legal', '/api/study/', 
 
 function isOpenPath(p) {
   if (OPEN_EXACT.has(p)) return true;
-  if (p.startsWith('/api/ads/js.rev.iq/')) return true;
+  if (p === '/ad.js' || p.startsWith('/api/ads/js.rev.iq/')) return true;
   if (p === '/storage/ag' || p.startsWith('/storage/ag/')) return true;
   if (p === '/api/websocket/normal' || p.startsWith('/api/websocket/normal/')) return true;
   if (p === '/api/websocket/tor' || p.startsWith('/api/websocket/tor/')) return true;

@@ -1037,6 +1037,10 @@ export default function GamesPage({ onNavigate, adminEdit = false, initialQuery 
             </div>
           ) : (
             <>
+              {/* Long banner under search/categories — Rosin-style, before game shelves */}
+              <div className="pb-3" data-pz-games-top-ad="1">
+                <GamesAnchorStrip withBanner />
+              </div>
               {showCarousels &&
                 carouselShelves.map((shelf) => (
                   <GameCarousel
@@ -1061,9 +1065,6 @@ export default function GamesPage({ onNavigate, adminEdit = false, initialQuery 
                   <ObfuscatedText as="span">{marks.e()}</ObfuscatedText>
                 </h2>
               )}
-              <div className="pt-1 pb-2">
-                <GamesAnchorStrip withBanner />
-              </div>
               {(() => {
                 const CHUNK = 18;
                 const chunks: typeof visible[] = [];

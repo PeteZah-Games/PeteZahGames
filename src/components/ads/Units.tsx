@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { AdBanner320, AdBanner728 } from "@/components/ads/Adsterra";
 import { hrefs, isGHref, isGvHref } from "@/lib/uiMarks";
 import {
   isAdFreeClient,
@@ -22,16 +23,30 @@ type RevIqApi = {
 };
 
 /** Path includes ".rev.iq" so RevIQ can discover the tag + re-fetch CR-* headers same-origin. */
-function revScriptSrc() {
+function revPublisherHost() {
   try {
-    const host = (window.location.hostname || "petezahgames.com").replace(/^www\./, "");
-    return `/api/ads/js.rev.iq/${encodeURIComponent(host)}`;
+    const host = (window.location.hostname || "petezahgames.com").replace(/^www\./, "").toLowerCase();
+    if (!host || host === "localhost" || host === "127.0.0.1" || host.endsWith(".local")) {
+      return "petezahgames.com";
+    }
+    return host;
   } catch {
-    return "/api/ads/js.rev.iq/petezahgames.com";
+    return "petezahgames.com";
   }
 }
 
+function revScriptSrc() {
+  // Prefer CourseAtlas-style /ad.js; fall back to js.rev.iq path if needed.
+  try {
+    if (typeof document !== "undefined" && document.querySelector('script[src="/ad.js"]')) {
+      return "/ad.js";
+    }
+  } catch {}
+  return `/api/ads/js.rev.iq/${encodeURIComponent(revPublisherHost())}`;
+}
+
 let netHooked = false;
+let recoveryHooked = false;
 let refreshTimer: number | null = null;
 
 setAdFreeListener((on) => {
@@ -107,9 +122,49 @@ function ensureScript() {
   document.head.appendChild(s);
 }
 
+/** Adsterra / Monetag-style recovery (anti-adblock) — loads publisher recovery tag. */
+function ensureRecovery() {
+  if (typeof document === "undefined" || recoveryHooked) return;
+  if (isAdFreeClient()) return;
+  if (document.querySelector('script[data-pz-ad-recovery="1"]')) {
+    recoveryHooked = true;
+    return;
+  }
+  recoveryHooked = true;
+  const remotes = [
+    "https://cdn.highperformanceformat.com/66a79344e6255e249e7c6e8c/o.js",
+    "https://cdn.effectivecpmnetwork.com/66a79344e6255e249e7c6e8c/o.js",
+  ];
+  const tryNext = (i: number) => {
+    if (i >= remotes.length) {
+      const local = document.createElement("script");
+      local.async = true;
+      local.dataset.cfasync = "false";
+      local.dataset.pzAdRecovery = "1";
+      local.src = "/storage/js/pz-ad-recovery.js?uid=66a79344e6255e249e7c6e8c";
+      document.head.appendChild(local);
+      return;
+    }
+    const s = document.createElement("script");
+    s.async = true;
+    s.dataset.cfasync = "false";
+    s.dataset.pzAdRecovery = "1";
+    s.src = remotes[i];
+    s.onerror = () => {
+      try {
+        s.remove();
+      } catch {}
+      tryNext(i + 1);
+    };
+    document.head.appendChild(s);
+  };
+  tryNext(0);
+}
+
 export function bootSlotNet() {
   void refreshAdFreeStatus();
   ensureScript();
+  ensureRecovery();
 }
 
 /** Push a privacy-safe hashed identity when the user is signed in (RevIQ setUid). */
@@ -218,17 +273,8 @@ export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean; framed?
     return { sticky: false };
   }
 
-  // Home: keep RevIQ sticky/rails off (CSS); home banner is RevIQ-only.
-  if (home) {
-    withApi((api) => {
-      try {
-        api.setAdsEnabled?.(false);
-      } catch {}
-    });
-    return { sticky: false };
-  }
-
-  if (isSoftEarn(url)) {
+  // Home + catalog: same shell as CourseAtlas (rails / sticky / interstitial).
+  if (home || isSoftEarn(url)) {
     withApi((api) => {
       try {
         api.setAdsEnabled?.(true);
@@ -294,226 +340,107 @@ function useMq(query: string) {
   return show;
 }
 
+/** Match Rosin long-banner breakpoint (728 leaderboard from 760px up). */
 function DesktopOnly({ children }: { children: ReactNode }) {
-  if (!useMq("(min-width: 960px)")) return null;
+  if (!useMq("(min-width: 760px)")) return null;
   return <>{children}</>;
 }
 
 function MobileOnly({ children }: { children: ReactNode }) {
-  if (!useMq("(max-width: 959px)")) return null;
+  if (!useMq("(max-width: 759px)")) return null;
   return <>{children}</>;
 }
 
+/** Soft close chip inset on the creative — not hanging off the corner. */
 const closeBtnStyle: CSSProperties = {
   position: "absolute",
-  top: -8,
-  right: -8,
+  top: 6,
+  right: 6,
   zIndex: 5,
-  width: 26,
-  height: 26,
+  width: 22,
+  height: 22,
   borderRadius: 999,
-  border: "1px solid hsla(210,30%,80%,0.25)",
-  background: "hsla(220, 28%, 10%, 0.92)",
-  color: "#fff",
+  border: "1px solid hsla(210,30%,80%,0.14)",
+  background: "hsla(220, 20%, 8%, 0.45)",
+  color: "hsla(0,0%,100%,0.55)",
   cursor: "pointer",
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  fontSize: 14,
-  fontWeight: 700,
+  fontSize: 13,
+  fontWeight: 500,
   lineHeight: 1,
   pointerEvents: "auto",
+  boxShadow: "none",
 };
 
-function useFilled(rootSel: string, enabled: boolean) {
-  const [filled, setFilled] = useState(false);
-  useEffect(() => {
-    if (!enabled) {
-      setFilled(false);
-      return;
-    }
-    const root = document.querySelector(rootSel);
-    if (!root) return;
-    const check = () => {
-      const slots = root.querySelectorAll("[data-ad]");
-      for (const slot of Array.from(slots)) {
-        const el = slot as HTMLElement;
-        if (el.getAttribute("data-ad-status") === "filled") {
-          setFilled(true);
-          return;
-        }
-        const media = el.querySelector("iframe, img, video");
-        if (media) {
-          const r = (media as HTMLElement).getBoundingClientRect?.();
-          if (r && r.height > 40 && r.width > 40) {
-            setFilled(true);
-            return;
-          }
-        }
-      }
-    };
-    check();
-    const mo = new MutationObserver(check);
-    mo.observe(root, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ["data-ad-status", "style"],
-    });
-    const t = window.setInterval(check, 1200);
-    return () => {
-      mo.disconnect();
-      window.clearInterval(t);
-    };
-  }, [rootSel, enabled]);
-  return filled;
-}
-
-/** Bottom-left + bottom-right anchor units, scoped to content pane (not chrome). */
+/**
+ * Sticky bottom anchor — shell #pz-anchor in index.html is the primary unit.
+ * This React fallback only runs if the shell node was removed.
+ */
 export function StickyAnchor({ enabled = true }: { enabled?: boolean }) {
-  const [closed, setClosed] = useState(false);
   const blocked = useAdFreeGate();
-  const filled = useFilled("[data-pz-forced-anchor='1']", !blocked && enabled && !closed);
 
   useEffect(() => {
     if (blocked || !enabled) return;
     ensureScript();
     scheduleRefresh();
+    try {
+      if (!document.getElementById("pz-anchor") && !document.querySelector('[data-ad="anchor"]')) {
+        const el = document.createElement("div");
+        el.id = "pz-anchor";
+        el.setAttribute("data-ad", "anchor");
+        document.body.appendChild(el);
+      }
+      if (!document.querySelector('[data-ad="interstitial-1"]')) {
+        const el = document.createElement("div");
+        el.setAttribute("data-ad", "interstitial-1");
+        document.body.appendChild(el);
+      }
+    } catch {}
   }, [blocked, enabled]);
 
-  useEffect(() => {
-    if (!enabled) {
-      setClosed(false);
-    }
-  }, [enabled]);
-
-  if (blocked || !enabled || closed) return null;
-
-  return (
-    <div
-      data-pz-forced-anchor="1"
-      data-pz-content-ad="1"
-      style={{
-        position: "absolute",
-        left: 10,
-        right: 10,
-        bottom: 10,
-        zIndex: 40,
-        pointerEvents: "none",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "flex-end",
-        gap: 12,
-        maxWidth: "100%",
-      }}
-    >
-      <div
-        style={{
-          position: "relative",
-          pointerEvents: filled ? "auto" : "none",
-          maxWidth: "min(336px, calc(50% - 6px))",
-          borderRadius: 10,
-          overflow: "visible",
-          boxShadow: filled ? "0 10px 28px rgba(0,0,0,0.35)" : "none",
-        }}
-      >
-        {filled ? (
-          <button type="button" aria-label="Close ad" onClick={() => setClosed(true)} style={closeBtnStyle}>
-            ×
-          </button>
-        ) : null}
-        <Slot name="anchor" kv={{ surface: "earn", slot: "bl" }} style={{ width: "min(336px, 100%)", minHeight: 90 }} />
-      </div>
-      <div
-        style={{
-          position: "relative",
-          pointerEvents: filled ? "auto" : "none",
-          maxWidth: "min(336px, calc(50% - 6px))",
-          borderRadius: 10,
-          overflow: "visible",
-          boxShadow: filled ? "0 10px 28px rgba(0,0,0,0.35)" : "none",
-          marginLeft: "auto",
-        }}
-      >
-        <Slot name="anchor" kv={{ surface: "earn", slot: "br" }} style={{ width: "min(336px, 100%)", minHeight: 90 }} />
-      </div>
-    </div>
-  );
+  return null;
 }
 
-const RAILS_CLOSED_KEY = "pz-rails-closed";
-
-function railsClosed() {
+function railSideClosed(side: "l" | "r") {
   try {
-    return sessionStorage.getItem(RAILS_CLOSED_KEY) === "1";
+    return sessionStorage.getItem(side === "l" ? "pz-rail-l-closed" : "pz-rail-r-closed") === "1";
   } catch {
     return false;
   }
 }
 
-function markRailsClosed() {
-  try {
-    sessionStorage.setItem(RAILS_CLOSED_KEY, "1");
-  } catch {}
-}
-
-/** Side rails inside the content pane only — never over sidebar / toolbars. */
+/** Ensures CourseAtlas-style left-rail-1 / right-rail-1 shell nodes exist. */
 export function SideRails({ enabled = true }: { enabled?: boolean }) {
-  const [closed, setClosed] = useState(railsClosed);
   const blocked = useAdFreeGate();
-  const filled = useFilled("[data-pz-side-rail]", !blocked && enabled && !closed);
 
   useEffect(() => {
-    if (blocked || !enabled || closed) return;
+    if (blocked || !enabled) return;
     ensureScript();
     scheduleRefresh();
-  }, [blocked, enabled, closed]);
+    try {
+      if (!railSideClosed("l") && !document.querySelector(".pz-side-l, [data-ad='left-rail-1']")) {
+        const el = document.createElement("div");
+        el.className = "pz-side-l";
+        el.setAttribute("data-ad", "left-rail-1");
+        document.body.appendChild(el);
+      }
+      if (!railSideClosed("r") && !document.querySelector(".pz-side-r, [data-ad='right-rail-1']")) {
+        const el = document.createElement("div");
+        el.className = "pz-side-r";
+        el.setAttribute("data-ad", "right-rail-1");
+        document.body.appendChild(el);
+      }
+    } catch {}
+  }, [blocked, enabled]);
 
-  if (blocked || !enabled || closed) return null;
-
-  const railShell: CSSProperties = {
-    position: "absolute",
-    top: "50%",
-    transform: "translateY(-50%)",
-    zIndex: 35,
-    width: 160,
-    maxHeight: "70%",
-    overflow: "hidden",
-    pointerEvents: filled ? "auto" : "none",
-  };
-
-  return (
-    <DesktopOnly>
-      <aside data-pz-side-rail="left" data-pz-content-ad="1" style={{ ...railShell, left: 8 }}>
-        {filled ? (
-          <button
-            type="button"
-            aria-label="Close ads"
-            onClick={() => {
-              markRailsClosed();
-              setClosed(true);
-            }}
-            style={{ ...closeBtnStyle, width: 22, height: 22, fontSize: 12 }}
-          >
-            ×
-          </button>
-        ) : null}
-        <Slot name="left-rail-2" style={{ width: "100%", minHeight: 180 }} kv={{ surface: "rail" }} />
-        <div style={{ height: 10 }} />
-        <Slot name="anchor" style={{ width: "100%", minHeight: 90 }} kv={{ surface: "rail", slot: "left-anchor" }} />
-      </aside>
-      <aside data-pz-side-rail="right" data-pz-content-ad="1" style={{ ...railShell, right: 8 }}>
-        <Slot name="right-rail-2" style={{ width: "100%", minHeight: 200 }} kv={{ surface: "rail" }} />
-        <div style={{ height: 10 }} />
-        <Slot name="anchor" style={{ width: "100%", minHeight: 90 }} kv={{ surface: "rail", slot: "right-anchor" }} />
-      </aside>
-    </DesktopOnly>
-  );
+  return null;
 }
 
 const HOME_AD_KEY = "pz-home-long-ad-closed";
 
-/** Long, centered, dismissible homepage banner — keeps glass chrome intact. */
+/** Long, centered, dismissible homepage banner — Adsterra fills visibly; RevIQ bids hidden. */
 export function HomeLongAd({ enabled = true }: { enabled?: boolean }) {
   const [closed, setClosed] = useState(() => {
     try {
@@ -528,6 +455,13 @@ export function HomeLongAd({ enabled = true }: { enabled?: boolean }) {
   useEffect(() => {
     if (!enabled) setClosed(false);
   }, [enabled]);
+
+  useEffect(() => {
+    if (blocked || !enabled || closed) return;
+    ensureScript();
+    ensureRecovery();
+    scheduleRefresh();
+  }, [blocked, enabled, closed]);
 
   if (blocked || !enabled || closed) return null;
 
@@ -549,7 +483,7 @@ export function HomeLongAd({ enabled = true }: { enabled?: boolean }) {
         style={{
           position: "relative",
           borderRadius: 14,
-          overflow: "visible",
+          overflow: "hidden",
           padding: "8px 10px 10px",
           background: "hsla(220, 35%, 6%, 0.72)",
           border: "1px solid hsla(210, 40%, 80%, 0.12)",
@@ -566,7 +500,7 @@ export function HomeLongAd({ enabled = true }: { enabled?: boolean }) {
             } catch {}
             setClosed(true);
           }}
-          style={{ ...closeBtnStyle, top: -10, right: -10 }}
+          style={closeBtnStyle}
         >
           ×
         </button>
@@ -578,155 +512,121 @@ export function HomeLongAd({ enabled = true }: { enabled?: boolean }) {
             minHeight: wide ? 90 : 50,
           }}
         >
-          <Slot
-            name={wide ? "leaderboard-1" : "mobile-unit-1"}
-            kv={{ surface: "home" }}
-            style={{ width: "100%", minHeight: wide ? 90 : 50 }}
-          />
+          {wide ? <AdBanner728 /> : <AdBanner320 />}
         </div>
       </div>
     </div>
   );
 }
 
-function useSoftCollapse(rootSel: string, enabled: boolean, waitMs = 2800) {
-  const filled = useFilled(rootSel, enabled);
-  const [giveUp, setGiveUp] = useState(false);
-  useEffect(() => {
-    if (!enabled || filled) {
-      setGiveUp(false);
-      return;
-    }
-    const t = window.setTimeout(() => setGiveUp(true), waitMs);
-    return () => window.clearTimeout(t);
-  }, [enabled, filled, waitMs]);
-  return { filled, collapsed: !filled && giveUp };
-}
-
-export function AdFeedStrip() {
-  const blocked = useAdFreeGate();
-  const idRef = useRef(`pz-feed-${Math.random().toString(36).slice(2, 9)}`);
-  const { filled, collapsed } = useSoftCollapse(`[data-pz-feed-id="${idRef.current}"]`, !blocked);
-  useEffect(() => {
-    if (blocked) return;
-    ensureScript();
-    scheduleRefresh();
-  }, [blocked]);
-  if (blocked) return null;
-  const open = filled || !collapsed;
-  return (
-    <div
-      data-pz-ad-slot="1"
-      data-ad-slot="feed"
-      data-pz-feed-id={idRef.current}
-      style={{
-        width: "100%",
-        padding: open ? "8px 0" : 0,
-        overflow: open ? "visible" : "hidden",
-      }}
-    >
-      <DesktopOnly>
-        <Slot
-          name="leaderboard-1"
-          style={{ width: "100%", minHeight: open ? 70 : 0 }}
-          kv={{ surface: "feed" }}
-        />
-      </DesktopOnly>
-      <MobileOnly>
-        <Slot
-          name="mobile-unit-1"
-          style={{ width: "100%", minHeight: open ? 80 : 0 }}
-          kv={{ surface: "feed" }}
-        />
-      </MobileOnly>
-    </div>
-  );
-}
-
-export function AdPageStack({ dense = false }: { dense?: boolean }) {
-  const blocked = useAdFreeGate();
-  useEffect(() => {
-    if (blocked) return;
-    ensureScript();
-    scheduleRefresh();
-  }, [blocked]);
-  if (blocked) return null;
-  return (
-    <div
-      data-pz-ad-slot="1"
-      data-ad-slot="page-stack"
-      style={{ width: "100%", padding: dense ? "6px 0" : "10px 0 6px" }}
-    >
-      <DesktopOnly>
-        <Slot name="billboard-1" style={{ width: "100%", minHeight: 90 }} kv={{ surface: "page" }} />
-      </DesktopOnly>
-      <MobileOnly>
-        <Slot name="mobile-unit-1" style={{ width: "100%", minHeight: 100 }} kv={{ surface: "page" }} />
-      </MobileOnly>
-    </div>
-  );
-}
-
-/** Extra in-flow anchors for the games catalog — outside the card grid. */
-export function GamesAnchorStrip({
-  withBanner = false,
+function LongBannerShell({
+  slotName,
+  mobileName = "mobile-unit-1",
+  dense = false,
+  kv,
+  idAttr,
+  idValue,
 }: {
-  withBanner?: boolean;
+  slotName: string;
+  mobileName?: string;
+  dense?: boolean;
+  kv: Record<string, string>;
+  idAttr: string;
+  idValue: string;
 }) {
   const blocked = useAdFreeGate();
   const wide = useMq("(min-width: 760px)");
-  const idRef = useRef(`pz-ganchors-${Math.random().toString(36).slice(2, 9)}`);
-  const { filled, collapsed } = useSoftCollapse(`[data-pz-ganchors-id="${idRef.current}"]`, !blocked);
   useEffect(() => {
     if (blocked) return;
     ensureScript();
+    ensureRecovery();
     scheduleRefresh();
-  }, [blocked]);
+    const t1 = window.setTimeout(() => scheduleRefresh(), 1200);
+    const t2 = window.setTimeout(() => scheduleRefresh(), 4000);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [blocked, slotName]);
   if (blocked) return null;
-  const open = filled || !collapsed;
-  const slotMin = open ? 90 : 0;
+  const minH = wide ? 90 : 50;
   return (
     <div
       data-pz-ad-slot="1"
-      data-ad-slot="games-anchors"
-      data-pz-ganchors-id={idRef.current}
+      data-ad-slot={kv.surface || "banner"}
+      {...{ [idAttr]: idValue }}
       style={{
         width: "100%",
-        padding: open ? "10px 0 6px" : 0,
+        maxWidth: 728,
+        margin: "0 auto",
+        padding: dense ? "6px 0" : "10px 0 8px",
+        minHeight: minH,
+        position: "relative",
         display: "flex",
         flexDirection: "column",
+        justifyContent: "center",
         alignItems: "center",
-        gap: open ? 10 : 0,
-        overflow: open ? "visible" : "hidden",
+        gap: 8,
       }}
     >
-      <div
+      {wide ? <AdBanner728 /> : <AdBanner320 />}
+      <Slot
+        name={wide ? slotName : mobileName}
+        size={wide ? "728x90" : "300x250"}
+        kv={kv}
         style={{
           width: "100%",
-          display: "flex",
-          justifyContent: "center",
-          gap: 12,
-          flexWrap: "wrap",
+          minHeight: 0,
+          maxHeight: 0,
+          overflow: "hidden",
+          opacity: 0,
+          pointerEvents: "none",
         }}
-      >
-        <Slot
-          name="anchor"
-          kv={{ surface: "games", slot: "mid-a" }}
-          style={{ width: "min(336px, 100%)", minHeight: slotMin, flex: "1 1 280px" }}
-        />
-        <Slot
-          name="anchor"
-          kv={{ surface: "games", slot: "mid-b" }}
-          style={{ width: "min(336px, 100%)", minHeight: slotMin, flex: "1 1 280px" }}
-        />
-      </div>
-      {withBanner ? (
-        <Slot
-          name={wide ? "leaderboard-1" : "mobile-unit-1"}
-          kv={{ surface: "games", slot: "banner" }}
-          style={{ width: "100%", minHeight: open ? (wide ? 90 : 50) : 0 }}
-        />
-      ) : null}
+      />
     </div>
+  );
+}
+
+export function AdFeedStrip() {
+  const idRef = useRef(`pz-feed-${Math.random().toString(36).slice(2, 9)}`);
+  return (
+    <LongBannerShell
+      slotName="leaderboard-1"
+      kv={{ surface: "feed" }}
+      idAttr="data-pz-feed-id"
+      idValue={idRef.current}
+    />
+  );
+}
+
+/** Long in-flow banner (728×90 / 300×250) — used at bottom of games/apps/etc. */
+export function AdPageStack({ dense = false }: { dense?: boolean }) {
+  const idRef = useRef(`pz-page-${Math.random().toString(36).slice(2, 9)}`);
+  return (
+    <LongBannerShell
+      slotName="leaderboard-3"
+      dense={dense}
+      kv={{ surface: "page" }}
+      idAttr="data-pz-page-id"
+      idValue={idRef.current}
+    />
+  );
+}
+
+/** Mid-catalog long banner for games — never uses sticky `anchor` / side-rail units. */
+export function GamesAnchorStrip({
+  withBanner = true,
+}: {
+  withBanner?: boolean;
+}) {
+  const idRef = useRef(`pz-ganchors-${Math.random().toString(36).slice(2, 9)}`);
+  if (!withBanner) return null;
+  return (
+    <LongBannerShell
+      slotName="leaderboard-4"
+      kv={{ surface: "games", slot: "banner" }}
+      idAttr="data-pz-ganchors-id"
+      idValue={idRef.current}
+    />
   );
 }

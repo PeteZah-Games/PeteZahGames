@@ -334,10 +334,37 @@ export async function adsTxtHandler(req, res) {
  * browser script URL contains `.rev.iq` — RevIQ finds it via
  * script[src*=".rev.iq"] and re-fetches that same-origin URL for CR-* geo.
  */
+function publisherHost(req) {
+  const pathHost = normalizeHost(String(req.params?.host || "").trim());
+  const reqHost = requestHost(req);
+  // Prefer path host when it's a real site; never fetch RevIQ config for localhost.
+  if (pathHost && !isLocalHost(pathHost)) return pathHost;
+  if (!isLocalHost(reqHost)) return reqHost;
+  return "petezahgames.com";
+}
+
+/**
+ * RevIQ forces Google demo inventory (`/6355419/Travel/Europe/...`) when
+ * `location.hostname` is not the publisher domain (e.g. localhost). That leaves
+ * rails/sticky empty during local QA. Neutralize sandbox only for local hosts.
+ */
+function unlockLocalSandbox(buf, reqHost) {
+  if (!isLocalHost(reqHost) || !buf) return buf;
+  const src = Buffer.isBuffer(buf) ? buf.toString("utf8") : String(buf);
+  // `ls=!y0||yn?.hasAttribute("data-dev")||yn?.hasAttribute("dev")||!1`
+  const next = src.replace(
+    /ls=!y0\|\|yn\?\.hasAttribute\("data-dev"\)\|\|yn\?\.hasAttribute\("dev"\)\|\|!1/g,
+    "ls=!1"
+  );
+  if (next === src) return buf;
+  return Buffer.from(next, "utf8");
+}
+
 export async function revIqJsHandler(req, res) {
-  const host = requestHost(req);
+  const host = publisherHost(req);
   try {
-    const buf = await loadScript(host);
+    let buf = await loadScript(host);
+    buf = unlockLocalSandbox(buf, requestHost(req));
     res.status(200);
     res.setHeader("Content-Type", "application/javascript; charset=utf-8");
     // Body may be cached; geo/IP headers MUST stay per-visitor (no shared edge cache).
@@ -358,4 +385,6 @@ export function mountRevAssets(app) {
   app.get("/api/ads/js.rev.iq/:host", revIqJsHandler);
   // Legacy alias (async inject could not discover this URL — prefer js.rev.iq path).
   app.get("/api/ads/net.js", revIqJsHandler);
+  // CourseAtlas-style URL; same payload as js.rev.iq (our account, not theirs).
+  app.get("/ad.js", revIqJsHandler);
 }

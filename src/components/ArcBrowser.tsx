@@ -124,9 +124,12 @@ export default function ArcBrowser() {
     const framed = !!state.focusedTab?.frame;
     const fromHome = isHomeSurface(prevUrlRef.current);
     syncSurfaceAds(url, { fromHome, framed });
-    setStickyOn(isStickySurface(url, framed));
-    setRailsOn(isRailSurface(url) && !isPlaySurface(url, framed));
-    setHomeAdOn(isHomeSurface(url) && !framed);
+    const home = isHomeSurface(url);
+    const play = isPlaySurface(url, framed);
+    // Sticky + rails + bottom home leaderboard; chrome ads off while playing.
+    setStickyOn(!play && (home || isStickySurface(url, framed)));
+    setRailsOn(!play && (home || isRailSurface(url)));
+    setHomeAdOn(home && !framed);
     prevUrlRef.current = url;
     try {
       if (url.startsWith("petezah://")) sessionStorage.setItem("pz-vortex-return", url.split("?")[0]);
