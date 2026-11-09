@@ -915,8 +915,17 @@
   }
   function ensureRightRail2() {
     if (homeEl() || watchPlayer() || popupOrOnboardingOpen()) return;
-    var host = document.querySelector(".a\u006eime-scroll-inner, .cat-scroll, .apps-scroll, .movies-catalog, .movies-scroll");
-    if (!host || !shown(host)) return;
+    // Games catalog (.cat-scroll) stays ad-strip-free — only anime/apps/movies get this in-flow rail.
+    var host = document.querySelector(".a\u006eime-scroll-inner, .apps-scroll, .movies-catalog, .movies-scroll");
+    if (!host || !shown(host)) {
+      var stray = document.querySelectorAll("[data-ad='right-rail-2'], [id^='ad_right-rail-2']");
+      for (var s = 0; s < stray.length; s++) {
+        if (stray[s].closest && stray[s].closest(".cat-scroll")) {
+          try { stray[s].remove(); } catch (err) {}
+        }
+      }
+      return;
+    }
     var existing = document.querySelector("[data-ad='right-rail-2'], [id^='ad_right-rail-2']");
     if (existing) {
       if (existing.getAttribute("data-pz-hidden") === "1") undoHide(existing);
@@ -1044,11 +1053,7 @@
     if (watchPlayer() || webFrame() || homeEl()) return null;
     var movies = movieCatalog();
     if (movies && movies.parentElement) return [movies.parentElement];
-    var cat = document.querySelector(".cat-scroll");
-    if (cat && shown(cat)) {
-      var bar = document.querySelector(".cat-toolbar");
-      return bar ? [cat, bar] : [cat];
-    }
+    // Skip games catalog — no skyscrapers / side padding on petezah://games.
     var a\u006eime = document.querySelector(".a\u006eime-scroll-inner");
     if (a\u006eime && shown(a\u006eime) && !a\u006eimePlayer()) return [a\u006eime];
     return null;

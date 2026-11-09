@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Dices, Plus, Star, MoreVertical, X, Trash2, Share2, Copy, Check, Upload, ChevronLeft, ChevronRight, RefreshCw, Crown, Pencil } from "lucide-react";
 import { requestSyncSoon } from "@/lib/settingsSync";
-import { AdFeedStrip, AdPageStack, GamesAnchorStrip } from "@/components/ads/Units";
 import { originHttpHost } from "@/lib/siteOrigin";
 import { resolveGameViaHref } from "@/lib/proxyTarget";
 import { normalizeGameVia, type GameVia } from "@/lib/mochiPath";
@@ -1085,25 +1084,10 @@ export default function GamesPage({ onNavigate, adminEdit = false, initialQuery 
                           />
                         ))}
                       </div>
-                      {!last ? (
-                        <div className="w-full py-2">
-                          <AdFeedStrip />
-                          {(ci + 1) % 2 === 0 ? <GamesAnchorStrip /> : null}
-                        </div>
-                      ) : null}
                     </Fragment>
                   );
                 });
               })()}
-              {visible.length >= 8 ? (
-                <div className="pt-3 pb-1">
-                  <AdFeedStrip />
-                  <GamesAnchorStrip />
-                </div>
-              ) : null}
-              <div className="pt-4 pb-2">
-                <AdPageStack dense />
-              </div>
               {hasMore && (
                 <div ref={loadMoreRef} className="flex justify-center py-8">
                   <div className="w-4 h-4 rounded-full border border-white/10 border-t-white/40 animate-spin" />
