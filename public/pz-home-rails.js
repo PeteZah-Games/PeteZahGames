@@ -1180,15 +1180,6 @@
       sessionStorage.setItem(side === "l" ? RAIL_L_KEY : RAIL_R_KEY, "1");
     } catch (err) {}
   }
-  var RAIL_FB_KEY = "fee48967b89db2d0bd32a6c670ffa744";
-  function railFilled(el) {
-    if (!el || el.getAttribute("data-ad-status") !== "filled") return false;
-    var nodes = creativeNodes(el);
-    for (var i = 0; i < nodes.length; i++) {
-      if (creativeShown(nodes[i])) return true;
-    }
-    return false;
-  }
   function hideSideFallback(side) {
     var fb = document.getElementById(side === "l" ? "pz-side-fb-l" : "pz-side-fb-r");
     if (fb) {
@@ -1242,50 +1233,6 @@
     s.setProperty("display", "block", "important");
     s.setProperty("visibility", "visible", "important");
   }
-  // Sibling fallback (NOT inside data-ad) so RevIQ GPT stays clean like CourseAtlas.
-  function placeSideFallback(side, x, y) {
-    if (document.documentElement.getAttribute("data-pz-adfree") === "1" || railSideClosed(side)) {
-      hideSideFallback(side);
-      return;
-    }
-    var rail = document.querySelector(side === "l" ? ".pz-side-l" : ".pz-side-r");
-    if (railFilled(rail)) {
-      hideSideFallback(side);
-      return;
-    }
-    var id = side === "l" ? "pz-side-fb-l" : "pz-side-fb-r";
-    var fb = document.getElementById(id);
-    if (!fb) {
-      fb = document.createElement("iframe");
-      fb.id = id;
-      fb.setAttribute("title", "Advertisement");
-      fb.setAttribute("scrolling", "no");
-      fb.setAttribute("frameborder", "0");
-      fb.setAttribute("data-pz-side-fb", side);
-      fb.srcdoc =
-        "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><style>" +
-        "html,body{margin:0;padding:0;overflow:hidden;background:hsla(220,28%,8%,.55);width:100%;height:100%;display:flex;align-items:center;justify-content:center}" +
-        "iframe{border:0;display:block}</style></head><body>" +
-        "<script>window.atOptions={key:\"" + RAIL_FB_KEY + "\",format:\"iframe\",height:50,width:320,params:{}};<\/script>" +
-        "<script src=\"https://www.highperformanceformat.com/" + RAIL_FB_KEY + "/invoke.js\"><\/script>" +
-        "</body></html>";
-      document.body.appendChild(fb);
-    }
-    var s = fb.style;
-    s.setProperty("position", "fixed", "important");
-    s.setProperty("left", Math.round(x) + "px", "important");
-    s.setProperty("top", y + "px", "important");
-    s.setProperty("width", "300px", "important");
-    s.setProperty("height", "250px", "important");
-    s.setProperty("border", "0", "important");
-    s.setProperty("border-radius", "10px", "important");
-    s.setProperty("z-index", "29", "important");
-    s.setProperty("display", "block", "important");
-    s.setProperty("visibility", "visible", "important");
-    s.setProperty("opacity", "1", "important");
-    s.setProperty("pointer-events", "auto", "important");
-    s.setProperty("background", "hsla(220, 28%, 8%, 0.45)", "important");
-  }
   function apply() {
     placeSky();
     placeRails(placeVideo());
@@ -1335,7 +1282,7 @@
       place(el, sx, sy, h);
       hardenRail(el);
       passShell(el, false);
-      placeSideFallback(which, sx, sy);
+      hideSideFallback(which);
       placeSideClose(which, sx, sy);
     }
     function hideSide(el, which) {

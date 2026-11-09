@@ -5,14 +5,22 @@ const TTL_MS = 60_000;
 let adFree = false;
 let adFreeAt = 0;
 let pending: Promise<boolean> | null = null;
-let onChange: ((on: boolean) => void) | null = null;
+const listeners = new Set<(on: boolean) => void>();
 
 export function isAdFreeClient() {
   return adFree;
 }
 
 export function setAdFreeListener(fn: ((on: boolean) => void) | null) {
-  onChange = fn;
+  listeners.clear();
+  if (fn) listeners.add(fn);
+}
+
+export function subscribeAdFree(fn: (on: boolean) => void) {
+  listeners.add(fn);
+  return () => {
+    listeners.delete(fn);
+  };
 }
 
 function apply(on: boolean) {
@@ -22,9 +30,11 @@ function apply(on: boolean) {
     if (on) document.documentElement.dataset.pzAdFree = "1";
     else delete document.documentElement.dataset.pzAdFree;
   } catch {}
-  try {
-    onChange?.(on);
-  } catch {}
+  listeners.forEach((fn) => {
+    try {
+      fn(on);
+    } catch {}
+  });
 }
 
 export function refreshAdFreeStatus(force = false): Promise<boolean> {
@@ -57,11 +67,15 @@ export function useAdFreeGate() {
   const [blocked, setBlocked] = useState(adFree);
   useEffect(() => {
     let alive = true;
+    const unsub = subscribeAdFree((on) => {
+      if (alive) setBlocked(on);
+    });
     refreshAdFreeStatus().then((on) => {
       if (alive) setBlocked(on);
     });
     return () => {
       alive = false;
+      unsub();
     };
   }, []);
   return blocked;

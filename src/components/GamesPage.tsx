@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Dices, Plus, Star, MoreVertical, X, Trash2, Share2, Copy, Check, Upload, ChevronLeft, ChevronRight, RefreshCw, Crown, Pencil } from "lucide-react";
 import { requestSyncSoon } from "@/lib/settingsSync";
-import { armAdAudio, preloadAnyClip } from "@/components/ads/AnyClipPlayer";
 import { AdFeedStrip, AdPageStack, GamesAnchorStrip } from "@/components/ads/Units";
 import { originHttpHost } from "@/lib/siteOrigin";
 import { resolveGameViaHref } from "@/lib/proxyTarget";
@@ -848,8 +847,6 @@ export default function GamesPage({ onNavigate, adminEdit = false, initialQuery 
   }, [hasMore, visible.length]);
 
   const handlePlay = useCallback((game: Game) => {
-    armAdAudio();
-    void preloadAnyClip();
     recordPlay(game);
     trackModuleOpen({
       id: game.id,
@@ -1037,10 +1034,6 @@ export default function GamesPage({ onNavigate, adminEdit = false, initialQuery 
             </div>
           ) : (
             <>
-              {/* Long banner under search/categories — Rosin-style, before game shelves */}
-              <div className="pb-3" data-pz-games-top-ad="1">
-                <GamesAnchorStrip withBanner />
-              </div>
               {showCarousels &&
                 carouselShelves.map((shelf) => (
                   <GameCarousel

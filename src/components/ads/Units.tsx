@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { AdBanner320, AdBanner728 } from "@/components/ads/Adsterra";
 import { hrefs, isGHref, isGvHref } from "@/lib/uiMarks";
 import {
   isAdFreeClient,
@@ -46,7 +45,6 @@ function revScriptSrc() {
 }
 
 let netHooked = false;
-let recoveryHooked = false;
 let refreshTimer: number | null = null;
 
 setAdFreeListener((on) => {
@@ -122,49 +120,9 @@ function ensureScript() {
   document.head.appendChild(s);
 }
 
-/** Adsterra / Monetag-style recovery (anti-adblock) — loads publisher recovery tag. */
-function ensureRecovery() {
-  if (typeof document === "undefined" || recoveryHooked) return;
-  if (isAdFreeClient()) return;
-  if (document.querySelector('script[data-pz-ad-recovery="1"]')) {
-    recoveryHooked = true;
-    return;
-  }
-  recoveryHooked = true;
-  const remotes = [
-    "https://cdn.highperformanceformat.com/66a79344e6255e249e7c6e8c/o.js",
-    "https://cdn.effectivecpmnetwork.com/66a79344e6255e249e7c6e8c/o.js",
-  ];
-  const tryNext = (i: number) => {
-    if (i >= remotes.length) {
-      const local = document.createElement("script");
-      local.async = true;
-      local.dataset.cfasync = "false";
-      local.dataset.pzAdRecovery = "1";
-      local.src = "/storage/js/pz-ad-recovery.js?uid=66a79344e6255e249e7c6e8c";
-      document.head.appendChild(local);
-      return;
-    }
-    const s = document.createElement("script");
-    s.async = true;
-    s.dataset.cfasync = "false";
-    s.dataset.pzAdRecovery = "1";
-    s.src = remotes[i];
-    s.onerror = () => {
-      try {
-        s.remove();
-      } catch {}
-      tryNext(i + 1);
-    };
-    document.head.appendChild(s);
-  };
-  tryNext(0);
-}
-
 export function bootSlotNet() {
   void refreshAdFreeStatus();
   ensureScript();
-  ensureRecovery();
 }
 
 /** Push a privacy-safe hashed identity when the user is signed in (RevIQ setUid). */
@@ -440,7 +398,7 @@ export function SideRails({ enabled = true }: { enabled?: boolean }) {
 
 const HOME_AD_KEY = "pz-home-long-ad-closed";
 
-/** Long, centered, dismissible homepage banner — Adsterra fills visibly; RevIQ bids hidden. */
+/** Long, centered, dismissible homepage banner — RevIQ only (no Adsterra). */
 export function HomeLongAd({ enabled = true }: { enabled?: boolean }) {
   const [closed, setClosed] = useState(() => {
     try {
@@ -459,7 +417,6 @@ export function HomeLongAd({ enabled = true }: { enabled?: boolean }) {
   useEffect(() => {
     if (blocked || !enabled || closed) return;
     ensureScript();
-    ensureRecovery();
     scheduleRefresh();
   }, [blocked, enabled, closed]);
 
@@ -512,7 +469,12 @@ export function HomeLongAd({ enabled = true }: { enabled?: boolean }) {
             minHeight: wide ? 90 : 50,
           }}
         >
-          {wide ? <AdBanner728 /> : <AdBanner320 />}
+          <Slot
+            name={wide ? "leaderboard-1" : "mobile-unit-1"}
+            size={wide ? "728x90" : "320x50"}
+            kv={{ surface: "home" }}
+            style={{ width: "100%", minHeight: wide ? 90 : 50 }}
+          />
         </div>
       </div>
     </div>
@@ -539,7 +501,6 @@ function LongBannerShell({
   useEffect(() => {
     if (blocked) return;
     ensureScript();
-    ensureRecovery();
     scheduleRefresh();
     const t1 = window.setTimeout(() => scheduleRefresh(), 1200);
     const t2 = window.setTimeout(() => scheduleRefresh(), 4000);
@@ -549,7 +510,7 @@ function LongBannerShell({
     };
   }, [blocked, slotName]);
   if (blocked) return null;
-  const minH = wide ? 90 : 50;
+  const minH = wide ? 90 : 100;
   return (
     <div
       data-pz-ad-slot="1"
@@ -566,22 +527,13 @@ function LongBannerShell({
         flexDirection: "column",
         justifyContent: "center",
         alignItems: "center",
-        gap: 8,
       }}
     >
-      {wide ? <AdBanner728 /> : <AdBanner320 />}
       <Slot
         name={wide ? slotName : mobileName}
         size={wide ? "728x90" : "300x250"}
         kv={kv}
-        style={{
-          width: "100%",
-          minHeight: 0,
-          maxHeight: 0,
-          overflow: "hidden",
-          opacity: 0,
-          pointerEvents: "none",
-        }}
+        style={{ width: "100%", minHeight: minH }}
       />
     </div>
   );

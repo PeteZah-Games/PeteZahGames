@@ -1,19 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Loader2 } from "lucide-react";
-import {
-  anyClipDue,
-  armAdAudio,
-  playAnyClipAd,
-  preloadAnyClip,
-} from "@/components/ads/AnyClipPlayer";
 import { GameLaunchSplash } from "@/components/GameLaunchSplash";
-import { isAdFreeClient } from "@/lib/adFree";
+import { refreshAdFreeStatus } from "@/lib/adFree";
 
 type Context = "game" | "app" | "vm";
 export type InterstitialPhase = "checking" | "ad" | "loading" | "ready";
-
-const AD_HARD_MS = 20000;
-const SKIP_AFTER_MS = 3500;
 
 export function useInterstitialUnlock(context: Context, enabled = true) {
   const [unlocked, setUnlocked] = useState(!enabled);
@@ -34,19 +24,14 @@ export function useInterstitialUnlock(context: Context, enabled = true) {
 
     cancelRef.current = false;
     doneRef.current = false;
-    let skipTimer = 0;
-    let hardTimer = 0;
     setUnlocked(false);
     setHadAd(false);
     setCanSkip(false);
     setPhase("checking");
-    void preloadAnyClip();
 
     const goNext = () => {
       if (cancelRef.current || doneRef.current) return;
       doneRef.current = true;
-      window.clearTimeout(skipTimer);
-      window.clearTimeout(hardTimer);
       setCanSkip(false);
       if (context === "game") {
         setPhase("loading");
@@ -58,37 +43,15 @@ export function useInterstitialUnlock(context: Context, enabled = true) {
 
     (async () => {
       try {
-        skipTimer = window.setTimeout(() => {
-          if (!cancelRef.current && !doneRef.current) setCanSkip(true);
-        }, SKIP_AFTER_MS);
-        hardTimer = window.setTimeout(() => {
-          goNext();
-        }, AD_HARD_MS);
-
-        if (isAdFreeClient() || !anyClipDue()) {
-          goNext();
-          return;
-        }
-
-        setPhase("ad");
-        setHadAd(true);
-        armAdAudio();
-        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-        if (cancelRef.current || doneRef.current) return;
-        await playAnyClipAd();
-        if (cancelRef.current || doneRef.current) return;
-        setHadAd(true);
-      } catch {
-        if (!doneRef.current) setHadAd(false);
-      }
-
+        await refreshAdFreeStatus();
+      } catch {}
+      if (cancelRef.current || doneRef.current) return;
+      // Pre-game AnyClip video removed. refreshAdFreeStatus keeps Premium gating in sync.
       goNext();
     })();
 
     return () => {
       cancelRef.current = true;
-      window.clearTimeout(skipTimer);
-      window.clearTimeout(hardTimer);
     };
   }, [context, enabled]);
 
@@ -130,7 +93,11 @@ export function InterstitialOverlay({
 }) {
   if (phase === "ready") return null;
 
-  if (phase === "loading") {
+  if (phase === "loading" || phase === "checking" || phase === "ad") {
+    if (phase === "checking" || phase === "ad") {
+      // No pre-game video — fall through to splash once loading starts.
+      return null;
+    }
     return (
       <GameLaunchSplash
         title={title}
@@ -142,92 +109,7 @@ export function InterstitialOverlay({
     );
   }
 
-  return (
-    <div
-      data-pz-content-frame="1"
-      style={{
-        position: "absolute",
-        inset: 0,
-        zIndex: 80,
-        display: "flex",
-        flexDirection: "column",
-        background: "#070b12",
-        overflow: "visible",
-      }}
-    >
-      <div style={{ flex: 1, minHeight: 0, position: "relative", overflow: "visible" }}>
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            zIndex: 2,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 14,
-            pointerEvents: "none",
-          }}
-        >
-          <Loader2 size={18} className="animate-spin" style={{ color: "hsla(0,0%,96%,0.85)" }} />
-          <p style={{ margin: 0, fontSize: 12, color: "hsla(0,0%,100%,0.72)" }}>
-            {phase === "ad" ? "Loading — thanks for your support" : "Preparing…"}
-          </p>
-          {canSkip && onSkip ? (
-            <button
-              type="button"
-              onClick={onSkip}
-              style={{
-                pointerEvents: "auto",
-                marginTop: 4,
-                padding: "8px 14px",
-                borderRadius: 10,
-                border: "1px solid hsla(210,40%,80%,0.18)",
-                background: "hsla(220,28%,10%,0.88)",
-                color: "hsla(0,0%,100%,0.88)",
-                fontSize: 12,
-                fontWeight: 650,
-                cursor: "pointer",
-              }}
-            >
-              Continue to game
-            </button>
-          ) : null}
-        </div>
-        <div
-          id="pz-anyclip-mount"
-          style={{
-            position: "absolute",
-            inset: 0,
-            zIndex: 5,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            pointerEvents: "auto",
-            visibility: "visible",
-          }}
-        >
-          <div
-            id="reviq-anyclip-aio-widget"
-            pubname="2731"
-            widgetname="001Te000004ZYO7IAO_M13894"
-            data-pubname="2731"
-            data-widgetname="001Te000004ZYO7IAO_M13894"
-            style={{
-              width: "min(640px, 94vw)",
-              height: "min(360px, 56vw)",
-              maxHeight: 360,
-              minHeight: 200,
-              pointerEvents: "auto",
-              background: "#000",
-              borderRadius: 12,
-              overflow: "hidden",
-            }}
-          />
-        </div>
-      </div>
-    </div>
-  );
+  return null;
 }
 
 export function InterstitialGate({
