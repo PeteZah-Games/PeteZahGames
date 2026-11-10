@@ -182,10 +182,97 @@ If you want to make the website better, the repository is open source, and my dm
       })(window, document, "script", "dataLayer", "GTM-WPH7NCG4");
     </script>
     <script>
-      window.reviq = window.reviq || [];
+      /* Premium / IP ad-free gate: never inject RevIQ or rails when status says free. */
+      (function () {
+        window.reviq = window.reviq || [];
+        var CACHE_KEY = "pz-adfree";
+        function mark(free) {
+          window.__pzAdFree = !!free;
+          try {
+            if (free) document.documentElement.setAttribute("data-pz-adfree", "1");
+            else document.documentElement.removeAttribute("data-pz-adfree");
+          } catch (e) {}
+          try {
+            sessionStorage.setItem(CACHE_KEY, free ? "1" : "0");
+          } catch (e) {}
+          return !!free;
+        }
+        function scrubShell() {
+          mark(true);
+          try {
+            var nodes = document.querySelectorAll(
+              "[data-ad], .pz-side-l, .pz-side-r, #pz-anchor, [data-pz-video], [data-pz-sky]"
+            );
+            for (var i = 0; i < nodes.length; i++) {
+              nodes[i].removeAttribute("data-ad");
+              nodes[i].setAttribute("data-pz-ad-scrubbed", "1");
+            }
+          } catch (e) {}
+          try {
+            var scripts = document.querySelectorAll(
+              'script[data-pz-slot-net], script[src="/ad.js"], script[src*="pz-home-rails"]'
+            );
+            for (var j = 0; j < scripts.length; j++) {
+              try {
+                scripts[j].remove();
+              } catch (e) {}
+            }
+          } catch (e) {}
+        }
+        function loadAds() {
+          if (window.__pzAdFree) return;
+          if (document.querySelector('script[data-pz-slot-net="1"]')) return;
+          var s = document.createElement("script");
+          s.src = "/ad.js";
+          s.defer = true;
+          s.dataset.pzSlotNet = "1";
+          (document.head || document.documentElement).appendChild(s);
+        }
+        function loadRails() {
+          if (window.__pzAdFree) return;
+          if (document.querySelector('script[src*="pz-home-rails"]')) return;
+          var s = document.createElement("script");
+          s.src = "/pz-home-rails.js?v=143";
+          (document.body || document.documentElement).appendChild(s);
+        }
+        function enableAds() {
+          mark(false);
+          loadAds();
+          if (document.body) loadRails();
+          else document.addEventListener("DOMContentLoaded", loadRails, { once: true });
+        }
+        var cached = null;
+        try {
+          cached = sessionStorage.getItem(CACHE_KEY);
+        } catch (e) {}
+        if (cached === "1") scrubShell();
+        else if (cached === "0") enableAds();
+
+        window.__pzAdGate = fetch("/api/ads/status", {
+          credentials: "include",
+          cache: "no-store",
+        })
+          .then(function (r) {
+            return r.ok ? r.json() : null;
+          })
+          .then(function (d) {
+            var free = !!(d && d.adFree === true);
+            if (free) {
+              scrubShell();
+            } else if (cached !== "0") {
+              enableAds();
+            } else {
+              mark(false);
+            }
+            return free;
+          })
+          .catch(function () {
+            if (cached === "1") return true;
+            if (cached !== "0") enableAds();
+            return false;
+          });
+      })();
     </script>
-    <!-- CourseAtlas-style same-origin tag; proxy still sets CR-* geo headers. -->
-    <script src="/ad.js" defer data-pz-slot-net="1"></script>
     <style>
       html, body {
         height: 100dvh;
@@ -573,11 +660,10 @@ If you want to make the website better, the repository is open source, and my dm
         </p>
       </section>
     </div>
-    <!-- RevIQ placement shell (same slot names as CourseAtlas; our loader fills them). -->
+    <!-- RevIQ placement shell (filled only when Premium gate allows ads). -->
     <div class="pz-side-l" data-ad="left-rail-1"></div>
     <div class="pz-side-r" data-ad="right-rail-1"></div>
     <div data-ad="interstitial-1"></div>
     <div id="pz-anchor" data-ad="anchor"></div>
-    <script src="/pz-home-rails.js?v=142"></script>
   </body>
 </html>

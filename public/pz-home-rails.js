@@ -1,4 +1,20 @@
 (function () {
+  // Premium / IP ad-free: index.html should not load this file at all. If it
+  // still lands here, bail before GPT rewarded / video / rails arm.
+  if (
+    window.__pzAdFree === true ||
+    (document.documentElement && document.documentElement.getAttribute("data-pz-adfree") === "1")
+  ) {
+    try {
+      window.__pzBreaks = true;
+      var scrub = document.querySelectorAll("[data-ad]");
+      for (var si = 0; si < scrub.length; si++) {
+        scrub[si].removeAttribute("data-ad");
+        scrub[si].setAttribute("data-pz-ad-scrubbed", "1");
+      }
+    } catch (err) {}
+    return;
+  }
   function shown(el) {
     var n = el;
     while (n && n !== document.body) {
@@ -531,6 +547,7 @@
   }
   function adsFree() {
     try {
+      if (window.__pzAdFree === true) return true;
       return document.documentElement.getAttribute("data-pz-adfree") === "1";
     } catch (err) {
       return false;
@@ -864,10 +881,10 @@
       };
     });
   }
-  gateRewarded();
   function armBreaks() {
     if (adsFree()) return;
     if (window.__pzBreaks) return;
+    gateRewarded();
     var g = window.googletag;
     if (!g || !g.cmd) return;
     window.__pzBreaks = true;
@@ -1154,7 +1171,7 @@
   }
   function placeVideo() {
     var el = document.querySelector("[data-pz-video]");
-    if (!VIDEO_ON || !engaged || videoClosed || !videoAllowed() || innerWidth < 320) {
+    if (adsFree() || !VIDEO_ON || !engaged || videoClosed || !videoAllowed() || innerWidth < 320) {
       if (el) el.remove();
       return null;
     }
@@ -1614,22 +1631,59 @@
     }
     scrubH5Dom();
   }
-  loadH5Reverse();
-  window.addEventListener("pz-hub-nav-changed", syncH5);
-  apply();
-  syncSlots();
-  liftCovered();
-  syncH5();
-  setInterval(function () { apply(); syncSlots(); liftCovered(); syncH5(); runBreaks(); fixBackground(false); }, 300);
-  setInterval(retryEmpty, 5000);
-  setInterval(refreshAnchor, 5000);
-  window.addEventListener("resize", function () { apply(); liftCovered(); });
-  document.addEventListener("focusin", apply, true);
-  document.addEventListener("focusout", function () { setTimeout(apply, 60); }, true);
-  document.addEventListener("input", apply, true);
-  document.addEventListener("click", function () { setTimeout(apply, 60); setTimeout(apply, 320); }, true);
-  if (window.__pzHist) {
-    history.pushState = window.__pzHist.p;
-    history.replaceState = window.__pzHist.r;
+  function startRails() {
+    if (adsFree()) {
+      window.__pzBreaks = true;
+      hideAllChromeAds();
+      return;
+    }
+    loadH5Reverse();
+    window.addEventListener("pz-hub-nav-changed", syncH5);
+    apply();
+    syncSlots();
+    liftCovered();
+    syncH5();
+    setInterval(function () {
+      if (adsFree()) {
+        hideAllChromeAds();
+        return;
+      }
+      apply();
+      syncSlots();
+      liftCovered();
+      syncH5();
+      runBreaks();
+      fixBackground(false);
+    }, 300);
+    setInterval(function () { if (!adsFree()) retryEmpty(); }, 5000);
+    setInterval(function () { if (!adsFree()) refreshAnchor(); }, 5000);
+    window.addEventListener("resize", function () { if (!adsFree()) { apply(); liftCovered(); } });
+    document.addEventListener("focusin", function () { if (!adsFree()) apply(); }, true);
+    document.addEventListener("focusout", function () { if (!adsFree()) setTimeout(apply, 60); }, true);
+    document.addEventListener("input", function () { if (!adsFree()) apply(); }, true);
+    document.addEventListener("click", function () {
+      if (adsFree()) return;
+      setTimeout(apply, 60);
+      setTimeout(apply, 320);
+    }, true);
+    if (window.__pzHist) {
+      history.pushState = window.__pzHist.p;
+      history.replaceState = window.__pzHist.r;
+    }
+  }
+  var gate = window.__pzAdGate;
+  if (gate && typeof gate.then === "function") {
+    gate.then(function (free) {
+      if (free) {
+        window.__pzAdFree = true;
+        window.__pzBreaks = true;
+        try { document.documentElement.setAttribute("data-pz-adfree", "1"); } catch (err) {}
+        hideAllChromeAds();
+        return;
+      }
+      startRails();
+    }, function () { startRails(); });
+  } else {
+    startRails();
   }
 })();

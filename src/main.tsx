@@ -43,10 +43,15 @@ if (!lite) {
 }
 
 whenQuietEnds(() => {
-  void import("@/components/ads/AnyClipPlayer").then((m) => {
-    try {
-      m.preloadAnyClip();
-    } catch {}
+  void import("@/lib/adFree").then(({ isAdFreeClient, refreshAdFreeStatus }) => {
+    void refreshAdFreeStatus().then((free) => {
+      if (free || isAdFreeClient() || (window as Window & { __pzAdFree?: boolean }).__pzAdFree) return;
+      void import("@/components/ads/AnyClipPlayer").then((m) => {
+        try {
+          m.preloadAnyClip();
+        } catch {}
+      });
+    });
   });
 });
 

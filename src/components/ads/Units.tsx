@@ -4,6 +4,7 @@ import {
   isAdFreeClient,
   refreshAdFreeStatus,
   setAdFreeListener,
+  stripAdScripts,
   useAdFreeGate,
 } from "@/lib/adFree";
 export { isAdFreeClient, refreshAdFreeStatus, useAdFreeGate } from "@/lib/adFree";
@@ -48,9 +49,18 @@ let netHooked = false;
 let refreshTimer: number | null = null;
 
 setAdFreeListener((on) => {
+  if (on) {
+    stripAdScripts();
+    withApi((api) => {
+      try {
+        api.setAdsEnabled?.(false);
+      } catch {}
+    });
+    return;
+  }
   withApi((api) => {
     try {
-      api.setAdsEnabled?.(!on);
+      api.setAdsEnabled?.(true);
     } catch {}
   });
 });
@@ -97,6 +107,10 @@ function scheduleRefresh() {
 
 function ensureScript() {
   if (typeof document === "undefined") return;
+  if (isAdFreeClient() || (typeof window !== "undefined" && window.__pzAdFree === true)) {
+    stripAdScripts();
+    return;
+  }
   window.reviq = window.reviq || [];
   const src = revScriptSrc();
   const existing =
@@ -123,17 +137,16 @@ function ensureScript() {
 export function bootSlotNet() {
   void refreshAdFreeStatus().then((free) => {
     if (free) {
+      stripAdScripts();
       withApi((api) => {
         try {
           api.setAdsEnabled?.(false);
         } catch {}
       });
-    } else {
-      ensureScript();
+      return;
     }
+    ensureScript();
   });
-  // Still load the tag shell; setAdsEnabled(false) above keeps Premium quiet.
-  ensureScript();
 }
 
 /** Push a privacy-safe hashed identity when the user is signed in (RevIQ setUid). */
@@ -209,8 +222,6 @@ export function isGamesCatalog(url: string) {
 }
 
 export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean; framed?: boolean }) {
-  ensureScript();
-
   const home = isHomeSurface(url);
   const quiet = isQuietSurface(url);
   const immersive = isImmersiveSurface(url, !!opts?.framed);
@@ -221,6 +232,7 @@ export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean; framed?
 
   const applySurface = (free: boolean) => {
     if (free) {
+      stripAdScripts();
       withApi((api) => {
         try {
           api.setAdsEnabled?.(false);
@@ -228,6 +240,8 @@ export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean; framed?
       });
       return { sticky: false as const };
     }
+
+    ensureScript();
 
     if (quiet || immersive) {
       withApi((api) => {
@@ -257,7 +271,6 @@ export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean; framed?
     return { sticky: false as const };
   };
 
-  // Await status so Premium/IP never briefly enable RevIQ before the gate lands.
   if (isAdFreeClient()) return applySurface(true);
   void refreshAdFreeStatus().then((free) => {
     applySurface(free);
