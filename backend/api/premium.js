@@ -30,7 +30,9 @@ export const premiumStatusLimiter = rateLimit({
   keyGenerator: (req) => req.session?.user?.id || toIPv4(null, req),
   standardHeaders: true,
   legacyHeaders: false,
-  handler: (_req, res) => res.status(429).json({ adFree: false }),
+  // Don't lie with adFree:false — clients treat that as authoritative and
+  // would briefly re-enable ads for Premium/IP users under burst traffic.
+  handler: (_req, res) => res.status(429).json({ error: 'Too many requests' }),
 });
 
 export function normalizePremiumIp(raw) {
@@ -75,7 +77,18 @@ function cached(key) {
 }
 
 function clientIp(req) {
-  return normalizePremiumIp(getClientIP(req) || toIPv4(null, req) || '') || '';
+  // Try several sources — CF / XFF / Express req.ip / socket — so Premium IP
+  // entries match the public address admins paste, not a loopback or edge peer.
+  const candidates = [
+    getClientIP(req),
+    typeof req.ip === 'string' ? req.ip : '',
+    toIPv4(null, req),
+  ];
+  for (const raw of candidates) {
+    const n = normalizePremiumIp(raw || '');
+    if (n) return n;
+  }
+  return '';
 }
 
 export function isAdFreeRequest(req) {

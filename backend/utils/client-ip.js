@@ -7,8 +7,13 @@ export function getClientIP(req) {
   // client can set X-Forwarded-For to spoof its IP (ban evasion, rate-limit
   // bypass, framing a victim IP).
   if (peerIsTrusted(req)) {
+    // Prefer CF-Connecting-IP (true client) when the edge is our reverse proxy.
+    const cf = req.headers['cf-connecting-ip'];
+    const real = req.headers['x-real-ip'];
     const xff = req.headers['x-forwarded-for'];
-    if (xff && typeof xff === 'string') ip = xff.split(',')[0].trim();
+    if (cf && typeof cf === 'string' && cf.trim()) ip = cf.trim();
+    else if (xff && typeof xff === 'string' && xff.trim()) ip = xff.split(',')[0].trim();
+    else if (real && typeof real === 'string' && real.trim()) ip = real.trim();
   }
   if (ip && typeof ip === 'string' && ip.startsWith('::ffff:')) ip = ip.replace('::ffff:', '');
   return ip || null;

@@ -236,8 +236,16 @@ If you want to make the website better, the repository is open source, and my dm
       html[data-pz-adfree="1"] [data-reviq-sticky-ad],
       html[data-pz-adfree="1"] .pz-side-l,
       html[data-pz-adfree="1"] .pz-side-r,
-      html[data-pz-adfree="1"] #pz-anchor {
+      html[data-pz-adfree="1"] #pz-anchor,
+      html[data-pz-adfree="1"] #pz-break-skip,
+      html[data-pz-adfree="1"] #goog_rewarded,
+      html[data-pz-adfree="1"] #google_vignette,
+      html[data-pz-adfree="1"] [data-pz-video],
+      html[data-pz-adfree="1"] [data-pz-sky],
+      html[data-pz-adfree="1"] [data-pz-side-x],
+      html[data-pz-adfree="1"] [data-pz-side-fb] {
         display: none !important;
+        visibility: hidden !important;
         pointer-events: none !important;
       }
       [data-pz-content-ad="1"] {
@@ -570,6 +578,6 @@ If you want to make the website better, the repository is open source, and my dm
     <div class="pz-side-r" data-ad="right-rail-1"></div>
     <div data-ad="interstitial-1"></div>
     <div id="pz-anchor" data-ad="anchor"></div>
-    <script src="/pz-home-rails.js?v=141"></script>
+    <script src="/pz-home-rails.js?v=142"></script>
   </body>
 </html>

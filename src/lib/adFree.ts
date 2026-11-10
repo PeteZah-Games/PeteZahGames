@@ -44,9 +44,11 @@ export function refreshAdFreeStatus(force = false): Promise<boolean> {
   if (pending) return pending;
   pending = fetch("/api/ads/status", { credentials: "include", cache: "no-store" })
     .then(async (r) => {
-      if (!r.ok) return false;
+      // Keep the last known state on rate-limit / transient failures so Premium
+      // users aren't flipped back onto ads for a full TTL window.
+      if (r.status === 429 || !r.ok) return adFree;
       const d = await r.json().catch(() => null);
-      // Strict: only explicit true opts out of ads. Failures keep ads on.
+      // Strict: only explicit true opts out of ads.
       return d != null && d.adFree === true;
     })
     .then((on) => {
@@ -54,8 +56,9 @@ export function refreshAdFreeStatus(force = false): Promise<boolean> {
       return adFree;
     })
     .catch(() => {
-      apply(false);
-      return false;
+      // Network blip — keep previous; only stamp TTL so we retry soon.
+      adFreeAt = Date.now() - Math.floor(TTL_MS * 0.75);
+      return adFree;
     })
     .finally(() => {
       pending = null;

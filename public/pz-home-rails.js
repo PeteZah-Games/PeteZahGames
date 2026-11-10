@@ -529,17 +529,118 @@
     hideHard(document.querySelector(".pz-side-r"));
     document.documentElement.classList.add("pz-watch");
   }
+  function adsFree() {
+    try {
+      return document.documentElement.getAttribute("data-pz-adfree") === "1";
+    } catch (err) {
+      return false;
+    }
+  }
   function allowOverlays() {
     var prev = document.getElementById("pz-overlay-ads");
-    if (prev && prev.getAttribute("data-pz-v") === "94") return;
+    if (prev && prev.getAttribute("data-pz-v") === "95") return;
     if (prev) prev.remove();
     var st = document.createElement("style");
     st.id = "pz-overlay-ads";
-    st.setAttribute("data-pz-v", "94");
-    st.textContent = "html.pz-sticky-off [data-reviq-sticky-ad]{transform:translateY(calc(100% + 80px))!important;pointer-events:none!important}html.pz-break-on ins[id*='interstitial' i],html.pz-break-on ins[id*='interstitial' i] div,html.pz-break-on ins[id*='interstitial' i] iframe,html body>#goog_rewarded,html body>#google_vignette{position:fixed!important;inset:0!important;top:0!important;right:0!important;bottom:0!important;left:0!important;width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important;display:block!important;overflow:visible!important;z-index:2147483000!important;transform:none!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important}";
+    st.setAttribute("data-pz-v", "95");
+    // Gate rewarded/vignette behind pz-reward-on so leftover nodes don't eat clicks.
+    st.textContent =
+      "html.pz-sticky-off [data-reviq-sticky-ad]{transform:translateY(calc(100% + 80px))!important;pointer-events:none!important}" +
+      "html.pz-break-on ins[id*='interstitial' i],html.pz-break-on ins[id*='interstitial' i] div,html.pz-break-on ins[id*='interstitial' i] iframe" +
+      "{position:fixed!important;inset:0!important;top:0!important;right:0!important;bottom:0!important;left:0!important;width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important;display:block!important;overflow:visible!important;z-index:2147483000!important;transform:none!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important}" +
+      "html.pz-reward-on body>#goog_rewarded,html.pz-reward-on body>#google_vignette" +
+      "{position:fixed!important;inset:0!important;top:0!important;right:0!important;bottom:0!important;left:0!important;width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important;display:block!important;overflow:visible!important;z-index:2147483000!important;transform:none!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important}" +
+      "html:not(.pz-reward-on) body>#goog_rewarded,html:not(.pz-reward-on) body>#google_vignette" +
+      "{pointer-events:none!important;visibility:hidden!important;opacity:0!important;z-index:-1!important}" +
+      "#pz-break-skip{position:fixed;top:14px;right:14px;z-index:2147483646;min-width:72px;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.22);background:rgba(12,14,18,.72);color:rgba(255,255,255,.92);font:600 12px/1.2 system-ui,-apple-system,sans-serif;cursor:pointer;backdrop-filter:blur(10px);box-shadow:0 8px 24px rgba(0,0,0,.35)}" +
+      "#pz-break-skip[disabled]{opacity:.7;cursor:default}";
     document.head.appendChild(st);
   }
+  var skipTimer = 0;
+  var skipTick = 0;
+  var skipArmed = false;
+  function clearBreakSkip() {
+    skipArmed = false;
+    if (skipTimer) {
+      window.clearInterval(skipTimer);
+      skipTimer = 0;
+    }
+    var btn = document.getElementById("pz-break-skip");
+    if (btn) {
+      try { btn.remove(); } catch (err) {}
+    }
+  }
+  function dismissBreak() {
+    clearBreakSkip();
+    document.documentElement.classList.remove("pz-break-on");
+    document.documentElement.classList.remove("pz-reward-on");
+    rewardOk = false;
+    rewardTrying = false;
+    if (rewardShown && !rewardClosed) {
+      rewardClosed = true;
+      rewardClosedAt = Date.now();
+    }
+    breakOpenedAt = 0;
+    var kill = [
+      document.getElementById("goog_rewarded"),
+      document.getElementById("google_vignette"),
+    ];
+    for (var i = 0; i < kill.length; i++) {
+      if (!kill[i]) continue;
+      try {
+        kill[i].style.setProperty("pointer-events", "none", "important");
+        kill[i].style.setProperty("visibility", "hidden", "important");
+        kill[i].style.setProperty("opacity", "0", "important");
+        kill[i].remove();
+      } catch (err) {}
+    }
+    var ins = document.querySelectorAll("ins[id*='interstitial' i]");
+    for (var j = 0; j < ins.length; j++) {
+      try {
+        ins[j].style.setProperty("pointer-events", "none", "important");
+        ins[j].style.setProperty("visibility", "hidden", "important");
+      } catch (err) {}
+    }
+    setTimeout(function () { fixBackground(true); }, 200);
+  }
+  function armBreakSkip() {
+    if (adsFree() || skipArmed) return;
+    skipArmed = true;
+    var left = 5;
+    var btn = document.getElementById("pz-break-skip");
+    if (!btn) {
+      btn = document.createElement("button");
+      btn.id = "pz-break-skip";
+      btn.type = "button";
+      btn.setAttribute("aria-label", "Skip ad");
+      document.body.appendChild(btn);
+    }
+    btn.disabled = true;
+    btn.textContent = "Skip " + left;
+    btn.onclick = function (ev) {
+      if (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+      }
+      if (btn.disabled) return;
+      dismissBreak();
+    };
+    if (skipTimer) window.clearInterval(skipTimer);
+    skipTick = Date.now();
+    skipTimer = window.setInterval(function () {
+      left -= 1;
+      if (left > 0) {
+        btn.textContent = "Skip " + left;
+        return;
+      }
+      window.clearInterval(skipTimer);
+      skipTimer = 0;
+      btn.disabled = false;
+      btn.textContent = "Skip";
+    }, 1000);
+  }
   function revealInterstitial(slot) {
+    if (adsFree()) return;
     document.documentElement.classList.add("pz-break-on");
     var id = slot && slot.getSlotElementId && slot.getSlotElementId();
     var el = id && document.getElementById(id);
@@ -548,6 +649,7 @@
     el.style.cssText = css;
     var kids = el.querySelectorAll("div,iframe");
     for (var i = 0; i < kids.length; i++) kids[i].style.cssText = css;
+    armBreakSkip();
   }
   var rewardOk = false;
   var rewardShown = false;
@@ -653,30 +755,56 @@
   var REWARD_REST = 15000;
   var rewardClosedAt = 0;
   function showInterstitial() {
-    if (breakShown || !breakSlot) return false;
+    if (adsFree() || breakShown || !breakSlot) return false;
     breakShown = true;
     breakOpenedAt = Date.now();
     var slot = breakSlot;
     revealInterstitial(slot);
     setTimeout(function () { revealInterstitial(slot); }, 400);
+    // Blocked / empty interstitial still gets a skip so clicks aren't trapped.
+    armBreakSkip();
+    setTimeout(function () {
+      if (!document.documentElement.classList.contains("pz-break-on")) return;
+      var el = document.querySelector("ins[id*='interstitial' i] iframe, ins[id*='interstitial' i] div[id*='google']");
+      if (!el) armBreakSkip();
+    }, 2500);
     return true;
   }
   // rewarded opens as soon as one is ready on load
   function runBreaks() {
+    if (adsFree()) return;
     if (!rewardShown && !rewardTrying && rewardQueue.length) tryReward();
   }
   // interstitial opens on the visitor's first real click, once the rewarded is out of the way
   document.addEventListener("click", function (ev) {
-    if (!ev.isTrusted || breakShown || !breakSlot || rewardTrying) return;
+    if (!ev.isTrusted || adsFree() || breakShown || !breakSlot || rewardTrying) return;
     var now = Date.now();
     if (rewardShown && !rewardClosed && now - rewardShownAt < 90000) return;
     if (rewardClosedAt && now - rewardClosedAt < REWARD_REST) return;
     var target = ev.target;
-    if (target && target.closest && target.closest("[data-pz-video], [data-reviq-sticky-ad], [data-ad]")) return;
+    if (
+      target &&
+      target.closest &&
+      target.closest(
+        "button, a, input, textarea, select, label, [role='button'], [data-pz-video], [data-reviq-sticky-ad], [data-ad], #pz-break-skip, [data-pz-side-x], [data-pz-video-x]"
+      )
+    ) {
+      return;
+    }
     showInterstitial();
   }, true);
   function rewardOpen() {
-    if (document.getElementById("goog_rewarded") || location.hash === "#goog_rewarded") return true;
+    var host = document.getElementById("goog_rewarded") || document.getElementById("google_vignette");
+    if (host) {
+      var kids = host.querySelectorAll("iframe, video, canvas, img");
+      for (var k = 0; k < kids.length; k++) {
+        var kr = kids[k].getBoundingClientRect();
+        if (kr.width > 120 && kr.height > 80) return true;
+      }
+      // Empty shell still counts as "open" for skip arming — caller decides.
+      if (location.hash === "#goog_rewarded") return true;
+      return !!host.isConnected;
+    }
     var frames = document.querySelectorAll("iframe[id*='reward' i], iframe[id*='REWARD']");
     for (var i = 0; i < frames.length; i++) {
       var r = frames[i].getBoundingClientRect();
@@ -684,19 +812,37 @@
     }
     return false;
   }
+  function rewardHasCreative() {
+    var host = document.getElementById("goog_rewarded") || document.getElementById("google_vignette");
+    if (!host) return false;
+    var kids = host.querySelectorAll("iframe, video, canvas, img");
+    for (var i = 0; i < kids.length; i++) {
+      var r = kids[i].getBoundingClientRect();
+      if (r.width > 120 && r.height > 80) return true;
+    }
+    return false;
+  }
   // the page can hold more than one ready rewarded unit and some won't open, so try them in order until one shows
   function tryReward() {
+    if (adsFree()) { rewardTrying = false; return; }
     if (rewardShown || !rewardQueue.length) { rewardTrying = false; return; }
     rewardTrying = true;
     var event = rewardQueue.shift();
     rewardOk = true;
+    document.documentElement.classList.add("pz-reward-on");
     try { event.makeRewardedVisible(); } catch (err) {}
+    armBreakSkip();
     setTimeout(function () {
       if (rewardOpen()) {
         rewardTrying = false;
+        // Blocked/blank creative — keep skip armed so the user isn't stuck.
+        if (!rewardHasCreative()) armBreakSkip();
         return;
       }
+      document.documentElement.classList.remove("pz-reward-on");
       rewardShown = false;
+      rewardOk = false;
+      clearBreakSkip();
       tryReward();
     }, 1500);
   }
@@ -720,6 +866,7 @@
   }
   gateRewarded();
   function armBreaks() {
+    if (adsFree()) return;
     if (window.__pzBreaks) return;
     var g = window.googletag;
     if (!g || !g.cmd) return;
@@ -744,6 +891,7 @@
         try {
           pub.addEventListener("rewardedSlotClosed", function () {
             if (rewardShown) { rewardClosed = true; rewardClosedAt = Date.now(); }
+            dismissBreak();
             setTimeout(function () { fixBackground(true); }, 600);
           });
         } catch (err) {}
@@ -1238,7 +1386,29 @@
     s.setProperty("display", "block", "important");
     s.setProperty("visibility", "visible", "important");
   }
+  function hideAllChromeAds() {
+    hideHard(document.querySelector(".pz-side-l"));
+    hideHard(document.querySelector(".pz-side-r"));
+    hideHard(document.querySelector("[data-pz-topbar]"));
+    hideHard(document.querySelector("[data-pz-video]"));
+    hideHard(document.getElementById("pz-anchor"));
+    hideSideFallback("l");
+    hideSideFallback("r");
+    hideSideClose("l");
+    hideSideClose("r");
+    var skies = document.querySelectorAll("[data-pz-sky]");
+    for (var i = 0; i < skies.length; i++) {
+      try { skies[i].remove(); } catch (err) {}
+    }
+    clearBreakSkip();
+    document.documentElement.classList.remove("pz-break-on");
+    document.documentElement.classList.remove("pz-reward-on");
+  }
   function apply() {
+    if (adsFree()) {
+      hideAllChromeAds();
+      return;
+    }
     placeSky();
     placeRails(placeVideo());
     placeTopbar();
@@ -1247,6 +1417,10 @@
     refillRail(document.querySelector("[data-pz-topbar]"), "t");
   }
   function placeRails(video) {
+    if (adsFree()) {
+      hideAllChromeAds();
+      return;
+    }
     allowOverlays();
     armBreaks();
     placeAnchor();

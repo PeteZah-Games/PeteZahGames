@@ -121,7 +121,18 @@ function ensureScript() {
 }
 
 export function bootSlotNet() {
-  void refreshAdFreeStatus();
+  void refreshAdFreeStatus().then((free) => {
+    if (free) {
+      withApi((api) => {
+        try {
+          api.setAdsEnabled?.(false);
+        } catch {}
+      });
+    } else {
+      ensureScript();
+    }
+  });
+  // Still load the tag shell; setAdsEnabled(false) above keeps Premium quiet.
   ensureScript();
 }
 
@@ -198,21 +209,7 @@ export function isGamesCatalog(url: string) {
 }
 
 export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean; framed?: boolean }) {
-  void refreshAdFreeStatus();
   ensureScript();
-
-  if (isAdFreeClient()) {
-    withApi((api) => {
-      try {
-        api.setAdsEnabled?.(false);
-      } catch {}
-    });
-    try {
-      document.documentElement.dataset.pzHomeAds = "1";
-      document.documentElement.dataset.pzPlayAds = "0";
-    } catch {}
-    return { sticky: false };
-  }
 
   const home = isHomeSurface(url);
   const quiet = isQuietSurface(url);
@@ -222,32 +219,50 @@ export function syncSurfaceAds(url: string, opts?: { fromHome?: boolean; framed?
     document.documentElement.dataset.pzPlayAds = immersive ? "1" : "0";
   } catch {}
 
-  if (quiet || immersive) {
+  const applySurface = (free: boolean) => {
+    if (free) {
+      withApi((api) => {
+        try {
+          api.setAdsEnabled?.(false);
+        } catch {}
+      });
+      return { sticky: false as const };
+    }
+
+    if (quiet || immersive) {
+      withApi((api) => {
+        try {
+          api.setAdsEnabled?.(false);
+        } catch {}
+      });
+      return { sticky: false as const };
+    }
+
+    // Home + catalog: same shell as CourseAtlas (rails / sticky / interstitial).
+    if (home || isSoftEarn(url)) {
+      withApi((api) => {
+        try {
+          api.setAdsEnabled?.(true);
+        } catch {}
+      });
+      scheduleRefresh();
+      return { sticky: true as const };
+    }
+
     withApi((api) => {
       try {
         api.setAdsEnabled?.(false);
       } catch {}
     });
-    return { sticky: false };
-  }
+    return { sticky: false as const };
+  };
 
-  // Home + catalog: same shell as CourseAtlas (rails / sticky / interstitial).
-  if (home || isSoftEarn(url)) {
-    withApi((api) => {
-      try {
-        api.setAdsEnabled?.(true);
-      } catch {}
-    });
-    scheduleRefresh();
-    return { sticky: true };
-  }
-
-  withApi((api) => {
-    try {
-      api.setAdsEnabled?.(false);
-    } catch {}
+  // Await status so Premium/IP never briefly enable RevIQ before the gate lands.
+  if (isAdFreeClient()) return applySurface(true);
+  void refreshAdFreeStatus().then((free) => {
+    applySurface(free);
   });
-  return { sticky: false };
+  return applySurface(false);
 }
 
 export function Slot({

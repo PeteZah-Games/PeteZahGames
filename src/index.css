@@ -427,8 +427,20 @@ html[data-pz-adfree="1"] [data-pz-ad-slot],
 html[data-pz-adfree="1"] [data-ad-slot],
 html[data-pz-adfree="1"] [data-pz-forced-anchor="1"],
 html[data-pz-adfree="1"] [data-pz-side-rail],
-html[data-pz-adfree="1"] [data-reviq-sticky-ad] {
+html[data-pz-adfree="1"] [data-pz-home-banner],
+html[data-pz-adfree="1"] [data-reviq-sticky-ad],
+html[data-pz-adfree="1"] .pz-side-l,
+html[data-pz-adfree="1"] .pz-side-r,
+html[data-pz-adfree="1"] #pz-anchor,
+html[data-pz-adfree="1"] #pz-break-skip,
+html[data-pz-adfree="1"] #goog_rewarded,
+html[data-pz-adfree="1"] #google_vignette,
+html[data-pz-adfree="1"] [data-pz-video],
+html[data-pz-adfree="1"] [data-pz-sky],
+html[data-pz-adfree="1"] [data-pz-side-x],
+html[data-pz-adfree="1"] [data-pz-side-fb] {
   display: none !important;
+  visibility: hidden !important;
   pointer-events: none !important;
 }
 @font-face {
