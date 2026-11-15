@@ -448,7 +448,7 @@ function MoviePlayer({
   const frameHostRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [watching, setWatching] = useState(false);
-  const [provider, setProvider] = useState("vidnest");
+  const [provider, setProvider] = useState("vixsrc");
   const [season, setSeason] = useState(state.season || 1);
   const [episode, setEpisode] = useState(state.episode || 1);
   const [seasons, setSeasons] = useState<SeasonInfo[]>([]);
@@ -458,11 +458,36 @@ function MoviePlayer({
   const [barVisible, setBarVisible] = useState(true);
   const [hopIndex, setHopIndex] = useState(0);
   const [sourceNote, setSourceNote] = useState("");
+  const [streams, setStreams] = useState<
+    Array<{
+      url: string;
+      type?: string;
+      quality?: string;
+      provider?: string;
+      providerName?: string;
+      headers?: Record<string, string>;
+      dead?: boolean;
+      label?: string;
+    }>
+  >([]);
+  const [streamIdx, setStreamIdx] = useState(0);
+  const [playMode, setPlayMode] = useState<"direct" | "embed" | null>(null);
+  const [directKey, setDirectKey] = useState(0);
+  /** Bumped only when embed must remount (Tor hop / manual provider). */
+  const [embedNonce, setEmbedNonce] = useState(0);
   const hideBarTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoHopRef = useRef(true);
   const hopIndexRef = useRef(0);
+  const streamIdxRef = useRef(0);
+  const streamsRef = useRef(streams);
+  streamsRef.current = streams;
+  streamIdxRef.current = streamIdx;
+  const playModeRef = useRef(playMode);
+  playModeRef.current = playMode;
   const providerRef = useRef(provider);
   providerRef.current = provider;
+  const mediaKey = `${state.tmdbId}:${state.type}:${season}:${episode}`;
+  const mediaKeyRef = useRef(mediaKey);
 
   useEffect(() => {
     const prev = localStorage.getItem("selectedVpnRegion") || DEFAULT_REGION;
@@ -485,8 +510,13 @@ function MoviePlayer({
     autoHopRef.current = true;
     hopIndexRef.current = 0;
     setHopIndex(0);
-    setProvider("vidnest");
+    setProvider("vixsrc");
     setSourceNote("");
+    setStreams([]);
+    setStreamIdx(0);
+    setPlayMode(null);
+    setDirectKey(0);
+    setEmbedNonce(0);
   }, [state.tmdbId, state.type]);
 
   useEffect(() => {
@@ -565,9 +595,13 @@ function MoviePlayer({
     let cancelled = false;
     let timer: ReturnType<typeof setInterval> | null = null;
     let sealTimer: ReturnType<typeof setInterval> | null = null;
+    let stallTimer: ReturnType<typeof setTimeout> | null = null;
     let hls: { destroy: () => void } | null = null;
+    let playToken = 0;
 
     const cleanup = () => {
+      if (stallTimer) clearTimeout(stallTimer);
+      stallTimer = null;
       try {
         hls?.destroy();
       } catch {}
@@ -583,135 +617,243 @@ function MoviePlayer({
       sealPlayerPopups(iframe);
     };
 
-    const hop = AUTO_SOURCE_HOPS[hopIndex] || AUTO_SOURCE_HOPS[0];
-    const providerId = autoHopRef.current ? hop.provider : provider;
-    const regionId = autoHopRef.current
-      ? hop.region
-      : (localStorage.getItem("selectedVpnRegion") || DEFAULT_REGION);
-    const prov = PROVIDERS.find((p) => p.id === providerId) || PROVIDERS[0];
+    const proxyUrl = (stream: { url: string; headers?: Record<string, string> }) => {
+      let u = `/api/tmdb/stream/proxy?url=${encodeURIComponent(stream.url)}`;
+      if (stream.headers) u += `&headers=${encodeURIComponent(JSON.stringify(stream.headers))}`;
+      return u;
+    };
 
-    const mountDirect = async () => {
-      // Only attempt x8rr direct streams on the first hop — keeps CPU low.
-      if (hopIndex !== 0 || !autoHopRef.current) return false;
+    const uniqStreams = (list: typeof streams) => {
+      const best = new Map<string, (typeof streams)[number]>();
+      for (const s of list) {
+        if (!s?.url) continue;
+        const key = `${s.providerName || s.provider || "src"}:${s.type || ""}:${s.quality || s.url}`;
+        const cur = best.get(key);
+        const q = (x?: string) => parseInt(String(x || ""), 10) || 0;
+        if (!cur || q(s.quality) > q(cur.quality)) best.set(key, { ...s });
+      }
+      const unique = [...best.values()];
+      const count: Record<string, number> = {};
+      for (const s of unique) {
+        const base = s.providerName || s.provider || "Server";
+        count[base] = (count[base] || 0) + 1;
+        s.label = base + (count[base] > 1 ? ` ${count[base]}` : "") + (s.quality ? ` ${s.quality}` : "");
+      }
+      return unique;
+    };
+
+    const startEmbed = async (regionOverride?: string) => {
+      const hop = AUTO_SOURCE_HOPS[hopIndexRef.current] || AUTO_SOURCE_HOPS[0];
+      const providerId = autoHopRef.current ? hop.provider : providerRef.current;
+      const regionId =
+        regionOverride ||
+        (autoHopRef.current
+          ? hop.region
+          : localStorage.getItem("selectedVpnRegion") || DEFAULT_REGION);
+      const prov = PROVIDERS.find((p) => p.id === providerId) || PROVIDERS[0];
+
+      setPlayMode("embed");
+      playModeRef.current = "embed";
+      setSourceNote(regionId === TOR_REGION ? "Loading via Tor…" : "Loading via proxy…");
+      await applyVpnRegion(regionId);
+      if (cancelled) return;
+
+      const mountEmbed = () => {
+        if (!pxReady()) return false;
+        try {
+          cleanup();
+          const target =
+            state.type === "tv"
+              ? prov.tv(state.tmdbId, season, episode)
+              : prov.movie(state.tmdbId);
+          const iframe = document.createElement("iframe");
+          iframe.style.cssText =
+            "position:absolute;inset:0;width:100%;height:100%;border:none;background:#000;opacity:0;transition:opacity 0.25s ease;";
+          iframe.allow = "autoplay; fullscreen; encrypted-media; picture-in-picture";
+          iframe.allowFullscreen = true;
+          iframe.referrerPolicy = "no-referrer";
+          iframe.setAttribute(
+            "sandbox",
+            "allow-scripts allow-same-origin allow-forms allow-presentation"
+          );
+          iframe.title = "Player";
+          iframe.onload = () => {
+            iframe.dataset.pzReady = "1";
+            iframe.style.opacity = "1";
+            sealFrame(iframe);
+          };
+          iframe.src = pxEncode(target);
+          host.appendChild(iframe);
+          iframeRef.current = iframe;
+          setFrameReady(true);
+          setLoadError("");
+          setSourceNote(regionId === TOR_REGION ? "Proxy · Tor" : "Proxy · Default");
+          return true;
+        } catch (e: any) {
+          setLoadError(e?.message || "Failed to start player");
+          return false;
+        }
+      };
+
+      if (!mountEmbed()) {
+        timer = setInterval(() => {
+          if (cancelled) return;
+          if (mountEmbed() && timer) clearInterval(timer);
+        }, 120);
+      }
+    };
+
+    const playDirect = async (list: typeof streams, idx: number, auto = true) => {
+      const stream = list[idx];
+      if (!stream?.url || cancelled) return false;
+      const token = ++playToken;
+      cleanup();
+      setPlayMode("direct");
+      playModeRef.current = "direct";
+      setStreamIdx(idx);
+      streamIdxRef.current = idx;
+      setSourceNote(`Loading ${stream.label || stream.providerName || "stream"}…`);
+
+      const video = document.createElement("video");
+      video.controls = true;
+      video.playsInline = true;
+      video.setAttribute("playsinline", "");
+      video.autoplay = true;
+      video.preload = "metadata";
+      video.dataset.pzDirect = "1";
+      video.dataset.pzReady = "1";
+      video.style.cssText =
+        "position:absolute;inset:0;width:100%;height:100%;border:none;background:#000;object-fit:contain;";
+      host.appendChild(video);
+
+      const stub = document.createElement("iframe");
+      stub.dataset.pzReady = "1";
+      stub.dataset.pzDirectStub = "1";
+      stub.style.display = "none";
+      host.appendChild(stub);
+      iframeRef.current = stub;
+
+      let failed = false;
+      const fail = () => {
+        if (failed || cancelled || token !== playToken) return;
+        failed = true;
+        list[idx] = { ...list[idx], dead: true };
+        setStreams([...list]);
+        const next = idx + 1;
+        if (auto && next < list.length) {
+          setSourceNote("Server failed — trying next…");
+          void playDirect(list, next, true);
+          return;
+        }
+        setSourceNote("Direct streams failed — trying proxy…");
+        hopIndexRef.current = 0;
+        setHopIndex(0);
+        autoHopRef.current = true;
+        void startEmbed(DEFAULT_REGION);
+      };
+
+      stallTimer = setTimeout(fail, BLACK_FAIL_MS);
+      video.addEventListener(
+        "playing",
+        () => {
+          if (stallTimer) clearTimeout(stallTimer);
+          stallTimer = null;
+          setSourceNote("");
+          setFrameReady(true);
+          setLoadError("");
+        },
+        { once: true }
+      );
+      video.addEventListener("error", fail, { once: true });
+
+      const src = proxyUrl(stream);
+      const isHls =
+        /\.m3u8(\?|$)/i.test(stream.url) || String(stream.type || "").toLowerCase() === "hls";
+      try {
+        if (isHls && video.canPlayType("application/vnd.apple.mpegurl")) {
+          video.src = src;
+        } else if (isHls) {
+          const Hls = await loadHlsCtor();
+          if (!Hls || !Hls.isSupported()) {
+            fail();
+            return false;
+          }
+          const inst = new Hls({
+            enableWorker: false,
+            maxBufferLength: 18,
+            maxMaxBufferLength: 36,
+            backBufferLength: 10,
+          });
+          inst.loadSource(src);
+          inst.attachMedia(video);
+          hls = inst;
+        } else {
+          video.src = src;
+        }
+        void video.play().catch(() => {});
+        setFrameReady(true);
+        return true;
+      } catch {
+        fail();
+        return false;
+      }
+    };
+
+    // Title / episode change must always re-scrape — ignore stale embed hop state.
+    const mediaChanged = mediaKeyRef.current !== mediaKey;
+    if (mediaChanged) {
+      mediaKeyRef.current = mediaKey;
+      autoHopRef.current = true;
+      hopIndexRef.current = 0;
+      playModeRef.current = null;
+      streamsRef.current = [];
+      streamIdxRef.current = 0;
+      setStreams([]);
+      setStreamIdx(0);
+      setPlayMode(null);
+      setHopIndex(0);
+    }
+
+    setFrameReady(false);
+    (async () => {
+      // User picked a scraped server from the bar (same title/episode).
+      if (!mediaChanged && directKey > 0 && streamsRef.current.length) {
+        await playDirect(streamsRef.current, streamIdxRef.current, false);
+        return;
+      }
+
+      // Embed hop / manual provider (default wisp → Tor after ~20s black).
+      // embedNonce is only a remount signal; hop/playMode refs decide the path.
+      if (!mediaChanged && (hopIndexRef.current > 0 || playModeRef.current === "embed")) {
+        await startEmbed();
+        return;
+      }
+
+      // Default: scrape x8rr sources and play native HLS/MP4 (no VidNest iframe).
+      setSourceNote("Scraping sources…");
       try {
         const path =
           state.type === "tv"
             ? `/api/tmdb/stream/tv/${state.tmdbId}/${season}/${episode}`
             : `/api/tmdb/stream/movie/${state.tmdbId}`;
         const r = await fetch(path, { credentials: "include", cache: "no-store" });
-        if (!r.ok) return false;
         const d = await r.json().catch(() => null);
-        const streams = Array.isArray(d?.streams) ? d.streams : [];
-        const pick = streams.find((s: { url?: string }) => s?.url);
-        if (!pick?.url) return false;
-
-        cleanup();
-        const headers = pick.headers ? encodeURIComponent(JSON.stringify(pick.headers)) : "";
-        const playUrl = `/api/tmdb/stream/proxy?url=${encodeURIComponent(pick.url)}${
-          headers ? `&headers=${headers}` : ""
-        }`;
-        const video = document.createElement("video");
-        video.controls = true;
-        video.playsInline = true;
-        video.setAttribute("playsinline", "");
-        video.autoplay = true;
-        video.preload = "metadata";
-        video.dataset.pzDirect = "1";
-        video.dataset.pzReady = "1";
-        video.style.cssText =
-          "position:absolute;inset:0;width:100%;height:100%;border:none;background:#000;object-fit:contain;";
-        host.appendChild(video);
-
-        const isHls =
-          /\.m3u8(\?|$)/i.test(pick.url) ||
-          String(pick.type || "").toLowerCase() === "hls";
-        if (isHls && video.canPlayType("application/vnd.apple.mpegurl")) {
-          video.src = playUrl;
-        } else if (isHls) {
-          const Hls = await loadHlsCtor();
-          if (Hls && Hls.isSupported()) {
-            const inst = new Hls({
-              enableWorker: false,
-              maxBufferLength: 20,
-              maxMaxBufferLength: 40,
-              backBufferLength: 12,
-            });
-            inst.loadSource(playUrl);
-            inst.attachMedia(video);
-            hls = inst;
-          } else {
-            video.remove();
-            return false;
-          }
-        } else {
-          video.src = playUrl;
+        const list = uniqStreams(Array.isArray(d?.streams) ? d.streams : []);
+        if (!cancelled && list.length) {
+          setStreams(list);
+          streamsRef.current = list;
+          await playDirect(list, 0, true);
+          return;
         }
-        void video.play().catch(() => {});
-        // Satisfy hop inspector which looks at iframeRef — use a stub marker.
-        const stub = document.createElement("iframe");
-        stub.dataset.pzReady = "1";
-        stub.dataset.pzDirectStub = "1";
-        stub.style.display = "none";
-        host.appendChild(stub);
-        iframeRef.current = stub;
-        setFrameReady(true);
-        setLoadError("");
-        setSourceNote("Direct stream");
-        return true;
-      } catch {
-        return false;
-      }
-    };
+      } catch {}
 
-    const mount = () => {
-      if (!pxReady()) return false;
-      try {
-        cleanup();
-        const target =
-          state.type === "tv"
-            ? prov.tv(state.tmdbId, season, episode)
-            : prov.movie(state.tmdbId);
-
-        const iframe = document.createElement("iframe");
-        iframe.style.cssText =
-          "position:absolute;inset:0;width:100%;height:100%;border:none;background:#000;opacity:0;transition:opacity 0.25s ease;";
-        iframe.allow = "autoplay; fullscreen; encrypted-media; picture-in-picture";
-        iframe.allowFullscreen = true;
-        iframe.referrerPolicy = "no-referrer";
-        iframe.setAttribute(
-          "sandbox",
-          "allow-scripts allow-same-origin allow-forms allow-presentation"
-        );
-        iframe.title = "Player";
-        iframe.onload = () => {
-          iframe.dataset.pzReady = "1";
-          iframe.style.opacity = "1";
-          sealFrame(iframe);
-        };
-        iframe.src = pxEncode(target);
-        host.appendChild(iframe);
-        iframeRef.current = iframe;
-        setFrameReady(true);
-        setLoadError("");
-        return true;
-      } catch (e: any) {
-        setLoadError(e?.message || "Failed to start player");
-        return false;
-      }
-    };
-
-    setFrameReady(false);
-    (async () => {
-      if (await mountDirect()) return;
       if (cancelled) return;
-      await applyVpnRegion(regionId);
-      if (cancelled) return;
-      if (!mount()) {
-        timer = setInterval(() => {
-          if (cancelled) return;
-          if (mount() && timer) clearInterval(timer);
-        }, 120);
-      }
+      hopIndexRef.current = 0;
+      setHopIndex(0);
+      autoHopRef.current = true;
+      playModeRef.current = "embed";
+      setPlayMode("embed");
+      await startEmbed(DEFAULT_REGION);
     })();
 
     sealTimer = setInterval(() => {
@@ -722,11 +864,13 @@ function MoviePlayer({
 
     return () => {
       cancelled = true;
+      playToken += 1;
       if (timer) clearInterval(timer);
       if (sealTimer) clearInterval(sealTimer);
       cleanup();
     };
-  }, [watching, provider, hopIndex, state.tmdbId, state.type, season, episode]);
+    // playMode/hopIndex omitted — refs + embedNonce drive remounts without killing HLS.
+  }, [watching, provider, embedNonce, directKey, mediaKey]);
 
   useEffect(() => {
     if (!watching || !autoHopRef.current) return;
@@ -737,7 +881,10 @@ function MoviePlayer({
     const tickMs = 1000;
     const timer = window.setInterval(() => {
       if (!autoHopRef.current || locked) return;
+      // Direct scrape path handles its own per-server 20s fail; only Tor-hop embeds.
+      if (playModeRef.current === "direct") return;
       const iframe = iframeRef.current;
+      if (iframe?.dataset.pzDirectStub === "1") return;
       if (!iframe || iframe.dataset.pzReady !== "1") {
         deadMs += tickMs;
       } else {
@@ -763,13 +910,16 @@ function MoviePlayer({
       hopIndexRef.current = next;
       setHopIndex(next);
       setProvider(AUTO_SOURCE_HOPS[next].provider);
+      setPlayMode("embed");
+      playModeRef.current = "embed";
+      setEmbedNonce((n) => n + 1);
       const nextHop = AUTO_SOURCE_HOPS[next];
       setSourceNote(
         nextHop.region === TOR_REGION ? "Switching to Tor…" : "Switching source…"
       );
     }, tickMs);
     return () => window.clearInterval(timer);
-  }, [watching, hopIndex, provider, state.tmdbId, state.type, season, episode]);
+  }, [watching, embedNonce, provider, mediaKey]);
 
   const bumpBar = () => {
     setBarVisible(true);
@@ -788,21 +938,22 @@ function MoviePlayer({
   const pickProvider = (id: string) => {
     autoHopRef.current = false;
     setSourceNote("");
+    setPlayMode("embed");
+    playModeRef.current = "embed";
     setProvider(id);
+    setEmbedNonce((n) => n + 1);
   };
 
   const startWatch = (ep?: number) => {
     if (typeof ep === "number") setEpisode(ep);
-    if (provider === "vidnest" || provider === "vidlink" || !PROVIDERS.some((p) => p.id === provider)) {
-      autoHopRef.current = true;
-      const hop = provider === "vidlink" ? 2 : 0;
-      hopIndexRef.current = hop;
-      setHopIndex(hop);
-      setProvider(AUTO_SOURCE_HOPS[hop].provider);
-      setSourceNote("");
-    } else {
-      autoHopRef.current = false;
-    }
+    autoHopRef.current = true;
+    hopIndexRef.current = 0;
+    setHopIndex(0);
+    setPlayMode(null);
+    playModeRef.current = null;
+    setDirectKey(0);
+    setEmbedNonce(0);
+    setSourceNote("");
     setWatching(true);
   };
 
@@ -957,19 +1108,52 @@ function MoviePlayer({
               <div style={{ flex: 1 }} />
             )}
 
-            <select
-              value={provider}
-              onChange={(e) => pickProvider(e.target.value)}
-              style={{
-                background: "transparent", border: `1px solid ${S.border}`, borderRadius: 999,
-                color: S.textSub, fontSize: 10, padding: "4px 8px", outline: "none", cursor: "pointer",
-                flexShrink: 0, maxWidth: 110,
-              }}
-            >
-              {PROVIDERS.map((p) => (
-                <option key={p.id} value={p.id}>{p.label}</option>
-              ))}
-            </select>
+            {streams.length && playMode !== "embed" ? (
+              <div style={{ display: "flex", gap: 4, overflowX: "auto", maxWidth: 280, scrollbarWidth: "none" }}>
+                {streams.map((s, i) => (
+                  <button
+                    key={`${s.label}-${i}`}
+                    type="button"
+                    disabled={!!s.dead}
+                    onClick={() => {
+                      streamIdxRef.current = i;
+                      setStreamIdx(i);
+                      setPlayMode("direct");
+                      setDirectKey((k) => k + 1);
+                    }}
+                    style={{
+                      flex: "0 0 auto",
+                      padding: "4px 8px",
+                      borderRadius: 999,
+                      fontSize: 9,
+                      fontWeight: 650,
+                      cursor: s.dead ? "default" : "pointer",
+                      opacity: s.dead ? 0.4 : 1,
+                      textDecoration: s.dead ? "line-through" : "none",
+                      border: `1px solid ${i === streamIdx ? S.borderFocus : S.border}`,
+                      background: i === streamIdx ? S.accentDim : "transparent",
+                      color: i === streamIdx ? S.text : S.textMuted,
+                    }}
+                  >
+                    {s.label || s.providerName || `S${i + 1}`}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <select
+                value={provider}
+                onChange={(e) => pickProvider(e.target.value)}
+                style={{
+                  background: "transparent", border: `1px solid ${S.border}`, borderRadius: 999,
+                  color: S.textSub, fontSize: 10, padding: "4px 8px", outline: "none", cursor: "pointer",
+                  flexShrink: 0, maxWidth: 110,
+                }}
+              >
+                {PROVIDERS.map((p) => (
+                  <option key={p.id} value={p.id}>{p.label}</option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
       </div>

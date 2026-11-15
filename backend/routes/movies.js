@@ -1,6 +1,7 @@
 import express from 'express';
 import fetch from 'node-fetch';
 import { bumpUsage } from '../utils/usage-daily.js';
+import { scrapeAll, PROVIDERS as X8_PROVIDERS } from '../x8rr-movies/src/providers.js';
 
 const router = express.Router();
 const TMDB_BASE = 'https://api.themoviedb.org/3';
@@ -206,7 +207,10 @@ router.get('/tv/:id/season/:season', async (req, res) => {
   }
 });
 
-/** x8rr/movies-compatible stream API (proxied). Set MOVIES_API_URL to an x8rr instance. */
+/**
+ * Direct streams via vendored x8rr/movies scrapers (no separate Bun service).
+ * Optional MOVIES_API_URL still works as an override to a remote x8rr instance.
+ */
 function moviesApiBase() {
   const raw = String(process.env.MOVIES_API_URL || process.env.X8RR_MOVIES_URL || '').trim();
   if (!raw) return '';
@@ -214,9 +218,32 @@ function moviesApiBase() {
 }
 
 const streamCache = new Map();
-const STREAM_TTL = 1000 * 60 * 8;
+const STREAM_TTL = 1000 * 60 * 12;
+const STREAM_CACHE_MAX = 120;
+const PROXY_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+const PROXY_MAX_CHUNK = 8 * 1024 * 1024;
 
-async function fetchX8rr(path) {
+async function scrapeLocal(type, tmdbId, season, episode) {
+  const key = `local:${type}:${tmdbId}:${season || ''}:${episode || ''}`;
+  const hit = streamCache.get(key);
+  if (hit && Date.now() - hit.at < STREAM_TTL) return hit.streams;
+
+  const store = (streams) => {
+    if (!streams?.length) return;
+    streamCache.delete(key);
+    streamCache.set(key, { at: Date.now(), streams });
+    if (streamCache.size > STREAM_CACHE_MAX) {
+      streamCache.delete(streamCache.keys().next().value);
+    }
+  };
+
+  const streams = await scrapeAll(type, tmdbId, season, episode, X8_PROVIDERS, store);
+  store(streams);
+  return streams;
+}
+
+async function fetchRemoteX8rr(path) {
   const base = moviesApiBase();
   if (!base) return null;
   const key = `x8:${path}`;
@@ -232,25 +259,33 @@ async function fetchX8rr(path) {
     if (!r.ok) return { streams: [] };
     const data = await r.json();
     streamCache.set(key, { at: Date.now(), data });
-    if (streamCache.size > 80) {
-      const first = streamCache.keys().next().value;
-      streamCache.delete(first);
-    }
     return data;
   } finally {
     clearTimeout(timer);
   }
 }
 
+router.get('/stream/sources', (_req, res) => {
+  res.json({
+    providers: X8_PROVIDERS.map(({ id, name }) => ({ id, name })),
+    remote: !!moviesApiBase(),
+  });
+});
+
 router.get('/stream/movie/:id', async (req, res) => {
   const id = sanitizeId(req.params.id);
   if (!id) return res.status(400).json({ error: 'Invalid id' });
-  if (!moviesApiBase()) {
-    return res.json({ streams: [], mode: 'embed', providers: 'x8rr-aligned' });
-  }
   try {
-    const data = await fetchX8rr(`/api/stream/movie/${id}`);
-    const streams = Array.isArray(data?.streams) ? data.streams.slice(0, 12) : [];
+    if (moviesApiBase()) {
+      const data = await fetchRemoteX8rr(`/api/stream/movie/${id}`);
+      const streams = Array.isArray(data?.streams) ? data.streams.slice(0, 16) : [];
+      res.setHeader('Cache-Control', 'private, max-age=60');
+      return res.json({ streams, mode: streams.length ? 'direct' : 'embed' });
+    }
+    const streams = (await scrapeLocal('movie', id)).slice(0, 16);
+    try {
+      bumpUsage('movies', 1);
+    } catch {}
     res.setHeader('Cache-Control', 'private, max-age=60');
     res.json({ streams, mode: streams.length ? 'direct' : 'embed' });
   } catch (e) {
@@ -265,12 +300,17 @@ router.get('/stream/tv/:id/:season/:episode', async (req, res) => {
   if (!id || season === null || episode === null) {
     return res.status(400).json({ error: 'Invalid id' });
   }
-  if (!moviesApiBase()) {
-    return res.json({ streams: [], mode: 'embed', providers: 'x8rr-aligned' });
-  }
   try {
-    const data = await fetchX8rr(`/api/stream/tv/${id}/${season}/${episode}`);
-    const streams = Array.isArray(data?.streams) ? data.streams.slice(0, 12) : [];
+    if (moviesApiBase()) {
+      const data = await fetchRemoteX8rr(`/api/stream/tv/${id}/${season}/${episode}`);
+      const streams = Array.isArray(data?.streams) ? data.streams.slice(0, 16) : [];
+      res.setHeader('Cache-Control', 'private, max-age=60');
+      return res.json({ streams, mode: streams.length ? 'direct' : 'embed' });
+    }
+    const streams = (await scrapeLocal('tv', id, season, episode)).slice(0, 16);
+    try {
+      bumpUsage('movies', 1);
+    } catch {}
     res.setHeader('Cache-Control', 'private, max-age=60');
     res.json({ streams, mode: streams.length ? 'direct' : 'embed' });
   } catch (e) {
@@ -278,39 +318,137 @@ router.get('/stream/tv/:id/:season/:episode', async (req, res) => {
   }
 });
 
-/** CORS/HLS proxy via x8rr when configured — keeps playback off the heavy page proxy. */
+function parseProxyHeaders(raw) {
+  if (!raw) return {};
+  try {
+    const h = JSON.parse(raw);
+    const blocked = new Set(['host', 'content-length', 'connection', 'range']);
+    return Object.fromEntries(
+      Object.entries(h).filter(
+        ([k, v]) => typeof v === 'string' && !blocked.has(k.toLowerCase())
+      )
+    );
+  } catch {
+    return {};
+  }
+}
+
+/** Local CORS/HLS proxy (x8rr-style) — keeps playback off Scramjet/wisp. */
 router.get('/stream/proxy', async (req, res) => {
-  const base = moviesApiBase();
-  if (!base) return res.status(503).json({ error: 'MOVIES_API_URL not configured' });
   const target = typeof req.query.url === 'string' ? req.query.url : '';
-  if (!/^https?:\/\//i.test(target) || target.length > 2000) {
+  if (!/^https?:\/\//i.test(target) || target.length > 2500) {
     return res.status(400).json({ error: 'Invalid url' });
   }
-  const headers = typeof req.query.headers === 'string' ? req.query.headers : '';
-  const qs = new URLSearchParams({ url: target });
-  if (headers) qs.set('headers', headers);
+
+  // Prefer remote x8rr proxy if configured (optional).
+  const base = moviesApiBase();
+  if (base) {
+    try {
+      const qs = new URLSearchParams({ url: target });
+      if (typeof req.query.headers === 'string' && req.query.headers) {
+        qs.set('headers', req.query.headers);
+      }
+      const r = await fetch(`${base}/api/proxy?${qs.toString()}`, {
+        headers: {
+          Accept: req.headers.accept || '*/*',
+          Range: req.headers.range || undefined,
+        },
+        redirect: 'follow',
+      });
+      res.status(r.status);
+      for (const h of ['content-type', 'content-length', 'accept-ranges', 'content-range', 'cache-control']) {
+        const v = r.headers.get(h);
+        if (v) res.setHeader(h, v);
+      }
+      const buf = Buffer.from(await r.arrayBuffer());
+      if (buf.length > 12 * 1024 * 1024) {
+        return res.status(413).json({ error: 'Payload too large' });
+      }
+      return res.end(buf);
+    } catch (e) {
+      // Fall through to local proxy.
+    }
+  }
+
+  const ac = new AbortController();
+  res.on('close', () => ac.abort());
+
   try {
-    const r = await fetch(`${base}/api/proxy?${qs.toString()}`, {
-      headers: {
-        Accept: req.headers.accept || '*/*',
-        Range: req.headers.range || undefined,
-      },
-      redirect: 'follow',
-    });
+    const origin = new URL(target).origin;
+    const extra = parseProxyHeaders(
+      typeof req.query.headers === 'string' ? req.query.headers : ''
+    );
+    const headers = { 'User-Agent': PROXY_UA, Referer: origin + '/', ...extra };
+    const range = String(req.headers.range || '').match(/^bytes=(\d+)-(\d*)$/);
+    if (range) {
+      const start = Number(range[1]);
+      const end = range[2]
+        ? Math.min(Number(range[2]), start + PROXY_MAX_CHUNK - 1)
+        : start + PROXY_MAX_CHUNK - 1;
+      headers.Range = `bytes=${start}-${end}`;
+    } else if (req.headers.range) {
+      headers.Range = req.headers.range;
+    }
+
+    const r = await fetch(target, { headers, signal: ac.signal });
+    if (!r.ok) return res.status(r.status).end();
+
+    const ct = r.headers.get('content-type') || '';
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'private, max-age=30');
+
+    const reader = r.body?.getReader?.();
+    const first = reader ? await reader.read() : { done: true, value: undefined };
+    const head = first.value ? new TextDecoder().decode(first.value.subarray(0, 16)) : '';
+    const isPlaylist = ct.includes('mpegurl') || head.trimStart().startsWith('#EXTM3U');
+
+    if (isPlaylist) {
+      const chunks = first.value ? [first.value] : [];
+      if (reader) {
+        for (;;) {
+          const c = await reader.read();
+          if (c.done) break;
+          chunks.push(c.value);
+        }
+      }
+      let text = new TextDecoder().decode(Buffer.concat(chunks.map((c) => Buffer.from(c))));
+      const hostToken = new URL(target).searchParams.get('token');
+      const hq = req.query.headers
+        ? `&headers=${encodeURIComponent(String(req.query.headers))}`
+        : '';
+      const wrap = (ref) => {
+        let abs = new URL(ref, r.url || target).href;
+        if (hostToken && !abs.includes('token=')) {
+          abs += (abs.includes('?') ? '&' : '?') + 'token=' + hostToken;
+        }
+        return `/api/tmdb/stream/proxy?url=${encodeURIComponent(abs)}${hq}`;
+      };
+      text = text
+        .replace(/^(?!#)(\S+)$/gm, (line) => wrap(line))
+        .replace(/URI="([^"]+)"/g, (_m, ref) => `URI="${wrap(ref)}"`);
+      res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+      return res.send(text);
+    }
+
     res.status(r.status);
-    const pass = ['content-type', 'content-length', 'accept-ranges', 'content-range', 'cache-control'];
-    for (const h of pass) {
+    for (const h of ['content-type', 'content-length', 'content-range', 'accept-ranges']) {
       const v = r.headers.get(h);
       if (v) res.setHeader(h, v);
     }
-    const buf = Buffer.from(await r.arrayBuffer());
-    // Cap memory — x8rr already chunks; refuse oversized blobs.
-    if (buf.length > 12 * 1024 * 1024) {
-      return res.status(413).json({ error: 'Payload too large' });
+    if (!ct) res.setHeader('Content-Type', 'application/octet-stream');
+    if (first.done || !reader) return res.end();
+    res.write(Buffer.from(first.value));
+    for (;;) {
+      const c = await reader.read();
+      if (c.done) break;
+      if (!res.write(Buffer.from(c.value))) {
+        await new Promise((resolve) => res.once('drain', resolve));
+      }
     }
-    res.end(buf);
+    res.end();
   } catch (e) {
-    res.status(502).json({ error: e.message || 'Proxy failed' });
+    if (!res.headersSent) res.status(502).json({ error: e.message || 'Proxy failed' });
+    else res.destroy();
   }
 });
 
