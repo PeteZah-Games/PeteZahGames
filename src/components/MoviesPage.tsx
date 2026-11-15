@@ -213,6 +213,36 @@ function hostVideoCleanup(host: HTMLElement | null) {
   });
 }
 
+type HlsCtor = {
+  isSupported: () => boolean;
+  new (opts?: Record<string, unknown>): {
+    loadSource: (url: string) => void;
+    attachMedia: (media: HTMLMediaElement) => void;
+    destroy: () => void;
+  };
+};
+
+/** Load HLS.js from CDN only when a direct stream needs it — keeps the Vite build free of the package. */
+function loadHlsCtor(): Promise<HlsCtor | null> {
+  const w = window as Window & { Hls?: HlsCtor };
+  if (w.Hls) return Promise.resolve(w.Hls);
+  return new Promise((resolve) => {
+    const existing = document.querySelector('script[data-pz-hls="1"]') as HTMLScriptElement | null;
+    if (existing) {
+      existing.addEventListener("load", () => resolve(w.Hls || null), { once: true });
+      existing.addEventListener("error", () => resolve(null), { once: true });
+      return;
+    }
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js";
+    s.async = true;
+    s.dataset.pzHls = "1";
+    s.onload = () => resolve(w.Hls || null);
+    s.onerror = () => resolve(null);
+    document.head.appendChild(s);
+  });
+}
+
 function inspectPlayerIframe(
   iframe: HTMLIFrameElement | null,
   lastTimes: WeakMap<HTMLVideoElement, number>
@@ -598,8 +628,7 @@ function MoviePlayer({
         if (isHls && video.canPlayType("application/vnd.apple.mpegurl")) {
           video.src = playUrl;
         } else if (isHls) {
-          const mod = await import("hls.js").catch(() => null);
-          const Hls = mod?.default;
+          const Hls = await loadHlsCtor();
           if (Hls && Hls.isSupported()) {
             const inst = new Hls({
               enableWorker: false,
