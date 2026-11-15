@@ -468,7 +468,7 @@ export function HomeLongAd({ enabled = true }: { enabled?: boolean }) {
         style={{
           position: "relative",
           borderRadius: 14,
-          overflow: "hidden",
+          overflow: "visible",
           padding: "8px 10px 10px",
           background: "hsla(220, 35%, 6%, 0.72)",
           border: "1px solid hsla(210, 40%, 80%, 0.12)",
@@ -485,7 +485,29 @@ export function HomeLongAd({ enabled = true }: { enabled?: boolean }) {
             } catch {}
             setClosed(true);
           }}
-          style={closeBtnStyle}
+          style={{
+            position: "absolute",
+            top: 6,
+            right: 6,
+            zIndex: 60,
+            width: 24,
+            height: 24,
+            margin: 0,
+            padding: 0,
+            borderRadius: 999,
+            border: "1px solid hsla(210,40%,80%,0.28)",
+            background: "hsla(220, 28%, 8%, 0.88)",
+            color: "hsla(0,0%,100%,0.92)",
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 15,
+            fontWeight: 600,
+            lineHeight: 1,
+            pointerEvents: "auto",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
+          }}
         >
           ×
         </button>
@@ -495,6 +517,8 @@ export function HomeLongAd({ enabled = true }: { enabled?: boolean }) {
             justifyContent: "center",
             width: "100%",
             minHeight: wide ? 90 : 50,
+            overflow: "hidden",
+            borderRadius: 8,
           }}
         >
           <Slot
