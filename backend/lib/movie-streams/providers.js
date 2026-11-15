@@ -1,6 +1,6 @@
 /**
- * Lightweight subset of https://github.com/x8rr/movies scrapers.
- * Skips vidfast/vidcore/vidup (~150MB sandboxes) and p-stream for RAM/CPU.
+ * Movie/TV stream scrapers (from https://github.com/x8rr/movies, trimmed).
+ * Used by backend/routes/movies.js — keeps heavy vidfast sandboxes out.
  */
 import { vidsparkExtract } from "./vidspark.js";
 import { vixsrcExtract } from "./vixsrc.js";

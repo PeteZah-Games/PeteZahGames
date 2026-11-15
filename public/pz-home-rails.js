@@ -849,10 +849,11 @@
     document.documentElement.classList.add("pz-reward-on");
     try { event.makeRewardedVisible(); } catch (err) {}
     armBreakSkip();
+    // Give the creative time to mount; tearing pz-reward-on off early causes a
+    // flash + layout glitch when paired with banner/apply churn.
     setTimeout(function () {
-      if (rewardOpen()) {
+      if (rewardOpen() || rewardHasCreative()) {
         rewardTrying = false;
-        // Blocked/blank creative — keep skip armed so the user isn't stuck.
         if (!rewardHasCreative()) armBreakSkip();
         return;
       }
@@ -861,7 +862,7 @@
       rewardOk = false;
       clearBreakSkip();
       tryReward();
-    }, 1500);
+    }, 2800);
   }
   // the rewarded unit comes from a third-party script that opens it on clicks; this limits it to one showing per page load
   function gateRewarded() {
@@ -1154,22 +1155,42 @@
   if (videoClosed) VIDEO_ON = false;
   var VIDEO_X = 22;
   function scrubOrphanVideoPlayers() {
+    // Never touch GPT rewarded / vignette / interstitials — they flash then get
+    // torn out and glitch the page (especially while HomeLongAd / apply() churns).
+    if (
+      document.documentElement.classList.contains("pz-reward-on") ||
+      document.documentElement.classList.contains("pz-break-on") ||
+      (rewardShown && !rewardClosed)
+    ) {
+      return;
+    }
     // RevIQ outstream often leaves fixed iframes/players outside [data-pz-video].
     var nodes = document.querySelectorAll("iframe, video, [id*='google_ads'], [id*='div-gpt']");
     for (var i = 0; i < nodes.length; i++) {
       var n = nodes[i];
       if (!n || !n.isConnected) continue;
-      if (n.closest && n.closest("[data-pz-video], [data-reviq-sticky-ad], .pz-side-l, .pz-side-r, #pz-anchor, [data-ad='anchor'], [data-pz-sky], #root")) {
+      if (
+        n.id === "goog_rewarded" ||
+        n.id === "google_vignette" ||
+        n.id === "pz-break-skip" ||
+        (n.closest &&
+          n.closest(
+            "#goog_rewarded, #google_vignette, #pz-break-skip, ins[id*='interstitial' i], [data-pz-video], [data-reviq-sticky-ad], [data-pz-home-banner], .pz-side-l, .pz-side-r, #pz-anchor, [data-ad='anchor'], [data-pz-sky], #root"
+          ))
+      ) {
         continue;
       }
       var cs = window.getComputedStyle(n);
       if (cs.position !== "fixed" && cs.position !== "absolute") continue;
       var r = n.getBoundingClientRect();
       if (r.width < 160 || r.height < 90) continue;
-      // Bottom-right trailer band (and similar floaters).
-      if (r.right < innerWidth - 40 || r.bottom < innerHeight - 40) {
-        if (r.left < innerWidth * 0.45) continue;
-      }
+      // Only scrub bottom-right trailer floaters — not fullscreen overlays.
+      var nearRight = r.right >= innerWidth - 40;
+      var nearBottom = r.bottom >= innerHeight - 40;
+      var leftish = r.left < innerWidth * 0.45;
+      var nearFull =
+        r.width >= innerWidth * 0.7 && r.height >= innerHeight * 0.7;
+      if (nearFull || leftish || !nearRight || !nearBottom) continue;
       try {
         n.style.setProperty("pointer-events", "none", "important");
         n.style.setProperty("visibility", "hidden", "important");

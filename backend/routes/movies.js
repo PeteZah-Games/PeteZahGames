@@ -1,7 +1,7 @@
 import express from 'express';
 import fetch from 'node-fetch';
 import { bumpUsage } from '../utils/usage-daily.js';
-import { scrapeAll, PROVIDERS as X8_PROVIDERS } from '../x8rr-movies/src/providers.js';
+import { scrapeAll, PROVIDERS as X8_PROVIDERS } from '../lib/movie-streams/providers.js';
 
 const router = express.Router();
 const TMDB_BASE = 'https://api.themoviedb.org/3';
@@ -208,7 +208,7 @@ router.get('/tv/:id/season/:season', async (req, res) => {
 });
 
 /**
- * Direct streams via vendored x8rr/movies scrapers (no separate Bun service).
+ * Direct streams via backend/lib/movie-streams scrapers (no separate Bun service).
  * Optional MOVIES_API_URL still works as an override to a remote x8rr instance.
  */
 function moviesApiBase() {
