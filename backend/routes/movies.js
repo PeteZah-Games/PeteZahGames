@@ -208,8 +208,8 @@ router.get('/tv/:id/season/:season', async (req, res) => {
 });
 
 /**
- * Direct streams via backend/lib/movie-streams scrapers (no separate Bun service).
- * Optional MOVIES_API_URL still works as an override to a remote x8rr instance.
+ * Direct streams via Lyra-style Movy resolve (backend/lib/movie-streams).
+ * Optional MOVIES_API_URL still works as an override to a remote instance.
  */
 function moviesApiBase() {
   const raw = String(process.env.MOVIES_API_URL || process.env.X8RR_MOVIES_URL || '').trim();
@@ -333,7 +333,7 @@ function parseProxyHeaders(raw) {
   }
 }
 
-/** Local CORS/HLS proxy (x8rr-style) — keeps playback off Scramjet/wisp. */
+/** Local CORS/HLS proxy (Lyra/Movy-style) — keeps playback off Scramjet/wisp. */
 router.get('/stream/proxy', async (req, res) => {
   const target = typeof req.query.url === 'string' ? req.query.url : '';
   // Worker/CDN stream URLs often carry long tokens — 2500 was rejecting valid sources.

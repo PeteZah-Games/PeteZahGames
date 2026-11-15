@@ -90,25 +90,13 @@ const TMDB_IMG = "https://image.tmdb.org/t/p/w342";
 const TMDB_BACKDROP = "https://image.tmdb.org/t/p/w1280";
 const TMDB_STILL = "https://image.tmdb.org/t/p/w300";
 
-/** Embed hosts aligned with x8rr/movies scrapers (lightweight iframe fallback). */
+/** Embed fallbacks (Lyra-style hosts) when Movy HLS fails — played via wisp, then Tor. */
 const PROVIDERS = [
   {
-    id: "vidnest",
-    label: "VidNest",
-    movie: (id: number) => `https://vidnest.fun/movie/${id}`,
-    tv: (id: number, s: number, e: number) => `https://vidnest.fun/tv/${id}/${s}/${e}`,
-  },
-  {
-    id: "vixsrc",
-    label: "VixSrc",
-    movie: (id: number) => `https://vixsrc.to/movie/${id}`,
-    tv: (id: number, s: number, e: number) => `https://vixsrc.to/tv/${id}/${s}/${e}`,
-  },
-  {
-    id: "vidlink",
-    label: "VidLink",
-    movie: (id: number) => `https://vidlink.pro/movie/${id}`,
-    tv: (id: number, s: number, e: number) => `https://vidlink.pro/tv/${id}/${s}/${e}`,
+    id: "vidfast",
+    label: "VidFast",
+    movie: (id: number) => `https://vidfast.pro/movie/${id}`,
+    tv: (id: number, s: number, e: number) => `https://vidfast.pro/tv/${id}/${s}/${e}`,
   },
   {
     id: "vidsrc",
@@ -117,28 +105,10 @@ const PROVIDERS = [
     tv: (id: number, s: number, e: number) => `https://vidsrc.xyz/embed/tv/${id}/${s}-${e}`,
   },
   {
-    id: "vidrock",
-    label: "VidRock",
-    movie: (id: number) => `https://vidrock.net/movie/${id}`,
-    tv: (id: number, s: number, e: number) => `https://vidrock.net/tv/${id}/${s}/${e}`,
-  },
-  {
-    id: "vidzee",
-    label: "VidZee",
-    movie: (id: number) => `https://player.vidzee.wtf/embed/movie/${id}`,
-    tv: (id: number, s: number, e: number) => `https://player.vidzee.wtf/embed/tv/${id}/${s}/${e}`,
-  },
-  {
-    id: "vidfast",
-    label: "VidFast",
-    movie: (id: number) => `https://vidfast.pro/movie/${id}`,
-    tv: (id: number, s: number, e: number) => `https://vidfast.pro/tv/${id}/${s}/${e}`,
-  },
-  {
-    id: "2embed",
-    label: "2Embed",
-    movie: (id: number) => `https://www.2embed.cc/embed/${id}`,
-    tv: (id: number, s: number, e: number) => `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}`,
+    id: "vidlink",
+    label: "VidLink",
+    movie: (id: number) => `https://vidlink.pro/movie/${id}`,
+    tv: (id: number, s: number, e: number) => `https://vidlink.pro/tv/${id}/${s}/${e}`,
   },
   {
     id: "vidsrccc",
@@ -152,21 +122,27 @@ const PROVIDERS = [
     movie: (id: number) => `https://player.autoembed.cc/embed/movie/${id}`,
     tv: (id: number, s: number, e: number) => `https://player.autoembed.cc/embed/tv/${id}/${s}/${e}`,
   },
+  {
+    id: "2embed",
+    label: "2Embed",
+    movie: (id: number) => `https://www.2embed.cc/embed/${id}`,
+    tv: (id: number, s: number, e: number) => `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}`,
+  },
 ];
 
 const DEFAULT_REGION = "default";
 const TOR_REGION = "tor";
 const BLACK_FAIL_MS = 20000;
-/** Don't skip a scraped server until it's had this long to start (stops rapid burn-through). */
-const SOURCE_MIN_MS = 10000;
-/** Auto-try this many scraped servers before falling back to embed. */
-const MAX_AUTO_SOURCES = 6;
-/** Default wisp first; switch to Tor after ~20s black screen (x8rr-aligned sources). */
+/** Don't skip a Movy server until it's had this long to start. */
+const SOURCE_MIN_MS = 12000;
+/** Auto-try this many Movy HLS urls before embed/Tor fallback. */
+const MAX_AUTO_SOURCES = 4;
+/** Embed via default wisp first; switch to Tor after ~20s black. */
 const AUTO_SOURCE_HOPS = [
-  { provider: "vidnest", region: DEFAULT_REGION, label: "VidNest" },
-  { provider: "vidnest", region: TOR_REGION, label: "VidNest · Tor" },
-  { provider: "vixsrc", region: DEFAULT_REGION, label: "VixSrc" },
-  { provider: "vixsrc", region: TOR_REGION, label: "VixSrc · Tor" },
+  { provider: "vidfast", region: DEFAULT_REGION, label: "VidFast" },
+  { provider: "vidfast", region: TOR_REGION, label: "VidFast · Tor" },
+  { provider: "vidsrc", region: DEFAULT_REGION, label: "VidSrc" },
+  { provider: "vidsrc", region: TOR_REGION, label: "VidSrc · Tor" },
   { provider: "vidlink", region: TOR_REGION, label: "VidLink · Tor" },
 ] as const;
 
@@ -458,7 +434,7 @@ function MoviePlayer({
   const frameHostRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [watching, setWatching] = useState(false);
-  const [provider, setProvider] = useState("vixsrc");
+  const [provider, setProvider] = useState("vidfast");
   const [season, setSeason] = useState(state.season || 1);
   const [episode, setEpisode] = useState(state.episode || 1);
   const [seasons, setSeasons] = useState<SeasonInfo[]>([]);
@@ -520,7 +496,7 @@ function MoviePlayer({
     autoHopRef.current = true;
     hopIndexRef.current = 0;
     setHopIndex(0);
-    setProvider("vixsrc");
+    setProvider("vidfast");
     setSourceNote("");
     setStreams([]);
     setStreamIdx(0);
@@ -891,8 +867,8 @@ function MoviePlayer({
         return;
       }
 
-      // Default: scrape x8rr sources and play native HLS/MP4 (no VidNest iframe).
-      setSourceNote("Scraping sources…");
+      // Lyra-style: resolve Movy HLS, play natively; if empty/fail → embed wisp → Tor.
+      setSourceNote("Finding stream…");
       try {
         const path =
           state.type === "tv"
