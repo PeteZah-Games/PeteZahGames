@@ -209,8 +209,13 @@ async function isAlive(stream) {
 }
 
 async function checkStreams(streams) {
+  if (!streams?.length) return [];
+  // Prefer confirmed-alive, but keep unchecked/failed probes too — VPS IP often
+  // fails CDN checks that still play through our browser proxy.
   const alive = await Promise.all(streams.map(isAlive));
-  return streams.filter((_, i) => alive[i]);
+  const ok = streams.filter((_, i) => alive[i]);
+  if (ok.length) return ok;
+  return streams;
 }
 
 /** Run scrapers in parallel; return early after first hits + grace window. */

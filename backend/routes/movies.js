@@ -336,7 +336,8 @@ function parseProxyHeaders(raw) {
 /** Local CORS/HLS proxy (x8rr-style) — keeps playback off Scramjet/wisp. */
 router.get('/stream/proxy', async (req, res) => {
   const target = typeof req.query.url === 'string' ? req.query.url : '';
-  if (!/^https?:\/\//i.test(target) || target.length > 2500) {
+  // Worker/CDN stream URLs often carry long tokens — 2500 was rejecting valid sources.
+  if (!/^https?:\/\//i.test(target) || target.length > 12000) {
     return res.status(400).json({ error: 'Invalid url' });
   }
 

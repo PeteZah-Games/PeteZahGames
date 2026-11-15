@@ -157,6 +157,10 @@ const PROVIDERS = [
 const DEFAULT_REGION = "default";
 const TOR_REGION = "tor";
 const BLACK_FAIL_MS = 20000;
+/** Don't skip a scraped server until it's had this long to start (stops rapid burn-through). */
+const SOURCE_MIN_MS = 10000;
+/** Auto-try this many scraped servers before falling back to embed. */
+const MAX_AUTO_SOURCES = 6;
 /** Default wisp first; switch to Tor after ~20s black screen (x8rr-aligned sources). */
 const AUTO_SOURCE_HOPS = [
   { provider: "vidnest", region: DEFAULT_REGION, label: "VidNest" },
@@ -213,13 +217,19 @@ function hostVideoCleanup(host: HTMLElement | null) {
   });
 }
 
+type HlsInstance = {
+  loadSource: (url: string) => void;
+  attachMedia: (media: HTMLMediaElement) => void;
+  destroy: () => void;
+  on: (event: string, cb: (event: string, data: { fatal?: boolean; type?: string; details?: string }) => void) => void;
+  startLoad?: () => void;
+  recoverMediaError?: () => void;
+};
 type HlsCtor = {
   isSupported: () => boolean;
-  new (opts?: Record<string, unknown>): {
-    loadSource: (url: string) => void;
-    attachMedia: (media: HTMLMediaElement) => void;
-    destroy: () => void;
-  };
+  Events?: { ERROR?: string; MANIFEST_PARSED?: string; MEDIA_ATTACHED?: string };
+  ErrorTypes?: { NETWORK_ERROR?: string; MEDIA_ERROR?: string };
+  new (opts?: Record<string, unknown>): HlsInstance;
 };
 
 /** Load HLS.js from CDN only when a direct stream needs it — keeps the Vite build free of the package. */
@@ -707,6 +717,7 @@ function MoviePlayer({
       const stream = list[idx];
       if (!stream?.url || cancelled) return false;
       const token = ++playToken;
+      const startedAt = Date.now();
       cleanup();
       setPlayMode("direct");
       playModeRef.current = "direct";
@@ -719,7 +730,7 @@ function MoviePlayer({
       video.playsInline = true;
       video.setAttribute("playsinline", "");
       video.autoplay = true;
-      video.preload = "metadata";
+      video.preload = "auto";
       video.dataset.pzDirect = "1";
       video.dataset.pzReady = "1";
       video.style.cssText =
@@ -734,13 +745,16 @@ function MoviePlayer({
       iframeRef.current = stub;
 
       let failed = false;
-      const fail = () => {
+      let playing = false;
+      let mediaRecoveries = 0;
+
+      const goNext = () => {
         if (failed || cancelled || token !== playToken) return;
         failed = true;
         list[idx] = { ...list[idx], dead: true };
         setStreams([...list]);
         const next = idx + 1;
-        if (auto && next < list.length) {
+        if (auto && next < list.length && next < MAX_AUTO_SOURCES) {
           setSourceNote("Server failed — trying next…");
           void playDirect(list, next, true);
           return;
@@ -752,19 +766,40 @@ function MoviePlayer({
         void startEmbed(DEFAULT_REGION);
       };
 
-      stallTimer = setTimeout(fail, BLACK_FAIL_MS);
-      video.addEventListener(
-        "playing",
-        () => {
+      /** Wait out SOURCE_MIN_MS so we don't burn through the list on first error blip. */
+      const fail = (why?: string) => {
+        if (failed || cancelled || token !== playToken || playing) return;
+        const waited = Date.now() - startedAt;
+        const left = SOURCE_MIN_MS - waited;
+        if (left > 0) {
+          setSourceNote(
+            `Still loading ${stream.label || stream.providerName || "stream"}…` +
+              (why ? ` (${why})` : "")
+          );
           if (stallTimer) clearTimeout(stallTimer);
-          stallTimer = null;
-          setSourceNote("");
-          setFrameReady(true);
-          setLoadError("");
-        },
-        { once: true }
-      );
-      video.addEventListener("error", fail, { once: true });
+          stallTimer = setTimeout(() => goNext(), left);
+          return;
+        }
+        goNext();
+      };
+
+      stallTimer = setTimeout(() => fail("timeout"), BLACK_FAIL_MS);
+
+      const onPlaying = () => {
+        if (token !== playToken) return;
+        playing = true;
+        if (stallTimer) clearTimeout(stallTimer);
+        stallTimer = null;
+        setSourceNote("");
+        setFrameReady(true);
+        setLoadError("");
+      };
+      video.addEventListener("playing", onPlaying);
+      video.addEventListener("loadeddata", () => {
+        if ((video.readyState || 0) >= 2) setFrameReady(true);
+      });
+      // Don't skip on the first media error — HLS often recovers; enforce min dwell.
+      video.addEventListener("error", () => fail("media"));
 
       const src = proxyUrl(stream);
       const isHls =
@@ -774,15 +809,42 @@ function MoviePlayer({
           video.src = src;
         } else if (isHls) {
           const Hls = await loadHlsCtor();
+          if (cancelled || token !== playToken) return false;
           if (!Hls || !Hls.isSupported()) {
-            fail();
+            fail("hls unsupported");
             return false;
           }
           const inst = new Hls({
             enableWorker: false,
-            maxBufferLength: 18,
-            maxMaxBufferLength: 36,
-            backBufferLength: 10,
+            maxBufferLength: 24,
+            maxMaxBufferLength: 48,
+            backBufferLength: 12,
+            manifestLoadingMaxRetry: 3,
+            levelLoadingMaxRetry: 3,
+            fragLoadingMaxRetry: 4,
+          });
+          const errEvt = Hls.Events?.ERROR || "hlsError";
+          const netErr = Hls.ErrorTypes?.NETWORK_ERROR || "networkError";
+          const mediaErr = Hls.ErrorTypes?.MEDIA_ERROR || "mediaError";
+          inst.on(errEvt, (_e, data) => {
+            if (!data?.fatal || playing || failed || token !== playToken) return;
+            if (data.type === netErr) {
+              try {
+                inst.startLoad?.();
+                return;
+              } catch {}
+            } else if (data.type === mediaErr && mediaRecoveries < 2) {
+              mediaRecoveries += 1;
+              try {
+                inst.recoverMediaError?.();
+                return;
+              } catch {}
+            }
+            fail(data.details || "hls");
+          });
+          const parsedEvt = Hls.Events?.MANIFEST_PARSED || "hlsManifestParsed";
+          inst.on(parsedEvt, () => {
+            void video.play().catch(() => {});
           });
           inst.loadSource(src);
           inst.attachMedia(video);
@@ -794,7 +856,7 @@ function MoviePlayer({
         setFrameReady(true);
         return true;
       } catch {
-        fail();
+        fail("exception");
         return false;
       }
     };
