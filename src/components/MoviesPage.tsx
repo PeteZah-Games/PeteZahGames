@@ -90,6 +90,7 @@ const TMDB_IMG = "https://image.tmdb.org/t/p/w342";
 const TMDB_BACKDROP = "https://image.tmdb.org/t/p/w1280";
 const TMDB_STILL = "https://image.tmdb.org/t/p/w300";
 
+/** Embed hosts aligned with x8rr/movies scrapers (lightweight iframe fallback). */
 const PROVIDERS = [
   {
     id: "vidnest",
@@ -98,10 +99,10 @@ const PROVIDERS = [
     tv: (id: number, s: number, e: number) => `https://vidnest.fun/tv/${id}/${s}/${e}`,
   },
   {
-    id: "vidking",
-    label: "VidKing",
-    movie: (id: number) => `https://www.vidking.net/embed/movie/${id}`,
-    tv: (id: number, s: number, e: number) => `https://www.vidking.net/embed/tv/${id}/${s}/${e}`,
+    id: "vixsrc",
+    label: "VixSrc",
+    movie: (id: number) => `https://vixsrc.to/movie/${id}`,
+    tv: (id: number, s: number, e: number) => `https://vixsrc.to/tv/${id}/${s}/${e}`,
   },
   {
     id: "vidlink",
@@ -116,40 +117,34 @@ const PROVIDERS = [
     tv: (id: number, s: number, e: number) => `https://vidsrc.xyz/embed/tv/${id}/${s}-${e}`,
   },
   {
-    id: "vidsrccc",
-    label: "VidSrc CC",
-    movie: (id: number) => `https://vidsrc.cc/v2/embed/movie/${id}`,
-    tv: (id: number, s: number, e: number) => `https://vidsrc.cc/v2/embed/tv/${id}/${s}/${e}`,
+    id: "vidrock",
+    label: "VidRock",
+    movie: (id: number) => `https://vidrock.net/movie/${id}`,
+    tv: (id: number, s: number, e: number) => `https://vidrock.net/tv/${id}/${s}/${e}`,
   },
   {
-    id: "vidsrcnet",
-    label: "VidSrc Net",
-    movie: (id: number) => `https://vidsrc.net/embed/movie/${id}`,
-    tv: (id: number, s: number, e: number) => `https://vidsrc.net/embed/tv/${id}/${s}-${e}`,
+    id: "vidzee",
+    label: "VidZee",
+    movie: (id: number) => `https://player.vidzee.wtf/embed/movie/${id}`,
+    tv: (id: number, s: number, e: number) => `https://player.vidzee.wtf/embed/tv/${id}/${s}/${e}`,
   },
   {
-    id: "embedsu",
-    label: "EmbedSU",
-    movie: (id: number) => `https://embed.su/embed/movie/${id}`,
-    tv: (id: number, s: number, e: number) => `https://embed.su/embed/tv/${id}/${s}/${e}`,
-  },
-  {
-    id: "multiembed",
-    label: "MultiEmbed",
-    movie: (id: number) => `https://multiembed.mov/?video_id=${id}&tmdb=1`,
-    tv: (id: number, s: number, e: number) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`,
-  },
-  {
-    id: "moviesapi",
-    label: "MoviesAPI",
-    movie: (id: number) => `https://moviesapi.club/movie/${id}`,
-    tv: (id: number, s: number, e: number) => `https://moviesapi.club/tv/${id}-${s}-${e}`,
+    id: "vidfast",
+    label: "VidFast",
+    movie: (id: number) => `https://vidfast.pro/movie/${id}`,
+    tv: (id: number, s: number, e: number) => `https://vidfast.pro/tv/${id}/${s}/${e}`,
   },
   {
     id: "2embed",
     label: "2Embed",
     movie: (id: number) => `https://www.2embed.cc/embed/${id}`,
     tv: (id: number, s: number, e: number) => `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}`,
+  },
+  {
+    id: "vidsrccc",
+    label: "VidSrc CC",
+    movie: (id: number) => `https://vidsrc.cc/v2/embed/movie/${id}`,
+    tv: (id: number, s: number, e: number) => `https://vidsrc.cc/v2/embed/tv/${id}/${s}/${e}`,
   },
   {
     id: "autoembed",
@@ -159,12 +154,15 @@ const PROVIDERS = [
   },
 ];
 
-const VIRGINIA_REGION = "4";
+const DEFAULT_REGION = "default";
 const TOR_REGION = "tor";
 const BLACK_FAIL_MS = 20000;
+/** Default wisp first; switch to Tor after ~20s black screen (x8rr-aligned sources). */
 const AUTO_SOURCE_HOPS = [
+  { provider: "vidnest", region: DEFAULT_REGION, label: "VidNest" },
   { provider: "vidnest", region: TOR_REGION, label: "VidNest · Tor" },
-  { provider: "vidnest", region: VIRGINIA_REGION, label: "VidNest" },
+  { provider: "vixsrc", region: DEFAULT_REGION, label: "VixSrc" },
+  { provider: "vixsrc", region: TOR_REGION, label: "VixSrc · Tor" },
   { provider: "vidlink", region: TOR_REGION, label: "VidLink · Tor" },
 ] as const;
 
@@ -206,11 +204,29 @@ function mediaLooksAlive(v: HTMLVideoElement, lastTimes: WeakMap<HTMLVideoElemen
   return false;
 }
 
+function hostVideoCleanup(host: HTMLElement | null) {
+  if (!host) return;
+  host.querySelectorAll("video[data-pz-direct], iframe[data-pz-direct-stub]").forEach((n) => {
+    try {
+      n.remove();
+    } catch {}
+  });
+}
+
 function inspectPlayerIframe(
   iframe: HTMLIFrameElement | null,
   lastTimes: WeakMap<HTMLVideoElement, number>
 ): "alive" | "dead" | "unknown" {
   if (!iframe) return "dead";
+  // Native x8rr direct player (sibling <video data-pz-direct>).
+  if (iframe.dataset.pzDirectStub === "1") {
+    const host = iframe.parentElement;
+    const videos = host ? Array.from(host.querySelectorAll("video[data-pz-direct]")) : [];
+    for (const v of videos) {
+      if (mediaLooksAlive(v as HTMLVideoElement, lastTimes)) return "alive";
+    }
+    return "dead";
+  }
   let win: Window | null = null;
   let doc: Document | null = null;
   try {
@@ -419,13 +435,14 @@ function MoviePlayer({
   providerRef.current = provider;
 
   useEffect(() => {
-    const prev = localStorage.getItem("selectedVpnRegion") || "default";
-    if (prev !== VIRGINIA_REGION && prev !== TOR_REGION) {
+    const prev = localStorage.getItem("selectedVpnRegion") || DEFAULT_REGION;
+    if (prev !== DEFAULT_REGION && prev !== TOR_REGION) {
       localStorage.setItem("pz-vpn-before-movies", prev);
     }
-    applyVpnRegion(TOR_REGION);
+    // Start on default wisp; auto-hop flips to Tor after ~20s if playback stays black.
+    applyVpnRegion(DEFAULT_REGION);
     return () => {
-      const restore = localStorage.getItem("pz-vpn-before-movies") || "default";
+      const restore = localStorage.getItem("pz-vpn-before-movies") || DEFAULT_REGION;
       applyVpnRegion(restore);
     };
   }, []);
@@ -506,6 +523,9 @@ function MoviePlayer({
         if (iframeRef.current?.parentNode) iframeRef.current.parentNode.removeChild(iframeRef.current);
       } catch {}
       iframeRef.current = null;
+      try {
+        hostVideoCleanup(frameHostRef.current);
+      } catch {}
       setFrameReady(false);
       return;
     }
@@ -515,12 +535,18 @@ function MoviePlayer({
     let cancelled = false;
     let timer: ReturnType<typeof setInterval> | null = null;
     let sealTimer: ReturnType<typeof setInterval> | null = null;
+    let hls: { destroy: () => void } | null = null;
 
     const cleanup = () => {
+      try {
+        hls?.destroy();
+      } catch {}
+      hls = null;
       try {
         if (iframeRef.current?.parentNode) iframeRef.current.parentNode.removeChild(iframeRef.current);
       } catch {}
       iframeRef.current = null;
+      hostVideoCleanup(host);
     };
 
     const sealFrame = (iframe: HTMLIFrameElement) => {
@@ -531,8 +557,82 @@ function MoviePlayer({
     const providerId = autoHopRef.current ? hop.provider : provider;
     const regionId = autoHopRef.current
       ? hop.region
-      : (localStorage.getItem("selectedVpnRegion") || TOR_REGION);
+      : (localStorage.getItem("selectedVpnRegion") || DEFAULT_REGION);
     const prov = PROVIDERS.find((p) => p.id === providerId) || PROVIDERS[0];
+
+    const mountDirect = async () => {
+      // Only attempt x8rr direct streams on the first hop — keeps CPU low.
+      if (hopIndex !== 0 || !autoHopRef.current) return false;
+      try {
+        const path =
+          state.type === "tv"
+            ? `/api/tmdb/stream/tv/${state.tmdbId}/${season}/${episode}`
+            : `/api/tmdb/stream/movie/${state.tmdbId}`;
+        const r = await fetch(path, { credentials: "include", cache: "no-store" });
+        if (!r.ok) return false;
+        const d = await r.json().catch(() => null);
+        const streams = Array.isArray(d?.streams) ? d.streams : [];
+        const pick = streams.find((s: { url?: string }) => s?.url);
+        if (!pick?.url) return false;
+
+        cleanup();
+        const headers = pick.headers ? encodeURIComponent(JSON.stringify(pick.headers)) : "";
+        const playUrl = `/api/tmdb/stream/proxy?url=${encodeURIComponent(pick.url)}${
+          headers ? `&headers=${headers}` : ""
+        }`;
+        const video = document.createElement("video");
+        video.controls = true;
+        video.playsInline = true;
+        video.setAttribute("playsinline", "");
+        video.autoplay = true;
+        video.preload = "metadata";
+        video.dataset.pzDirect = "1";
+        video.dataset.pzReady = "1";
+        video.style.cssText =
+          "position:absolute;inset:0;width:100%;height:100%;border:none;background:#000;object-fit:contain;";
+        host.appendChild(video);
+
+        const isHls =
+          /\.m3u8(\?|$)/i.test(pick.url) ||
+          String(pick.type || "").toLowerCase() === "hls";
+        if (isHls && video.canPlayType("application/vnd.apple.mpegurl")) {
+          video.src = playUrl;
+        } else if (isHls) {
+          const mod = await import("hls.js").catch(() => null);
+          const Hls = mod?.default;
+          if (Hls && Hls.isSupported()) {
+            const inst = new Hls({
+              enableWorker: false,
+              maxBufferLength: 20,
+              maxMaxBufferLength: 40,
+              backBufferLength: 12,
+            });
+            inst.loadSource(playUrl);
+            inst.attachMedia(video);
+            hls = inst;
+          } else {
+            video.remove();
+            return false;
+          }
+        } else {
+          video.src = playUrl;
+        }
+        void video.play().catch(() => {});
+        // Satisfy hop inspector which looks at iframeRef — use a stub marker.
+        const stub = document.createElement("iframe");
+        stub.dataset.pzReady = "1";
+        stub.dataset.pzDirectStub = "1";
+        stub.style.display = "none";
+        host.appendChild(stub);
+        iframeRef.current = stub;
+        setFrameReady(true);
+        setLoadError("");
+        setSourceNote("Direct stream");
+        return true;
+      } catch {
+        return false;
+      }
+    };
 
     const mount = () => {
       if (!pxReady()) return false;
@@ -573,6 +673,8 @@ function MoviePlayer({
 
     setFrameReady(false);
     (async () => {
+      if (await mountDirect()) return;
+      if (cancelled) return;
       await applyVpnRegion(regionId);
       if (cancelled) return;
       if (!mount()) {
@@ -584,7 +686,9 @@ function MoviePlayer({
     })();
 
     sealTimer = setInterval(() => {
-      if (iframeRef.current) sealFrame(iframeRef.current);
+      if (iframeRef.current && !iframeRef.current.dataset.pzDirectStub) {
+        sealFrame(iframeRef.current);
+      }
     }, sealPollMs());
 
     return () => {
@@ -630,7 +734,10 @@ function MoviePlayer({
       hopIndexRef.current = next;
       setHopIndex(next);
       setProvider(AUTO_SOURCE_HOPS[next].provider);
-      setSourceNote("Switching source…");
+      const nextHop = AUTO_SOURCE_HOPS[next];
+      setSourceNote(
+        nextHop.region === TOR_REGION ? "Switching to Tor…" : "Switching source…"
+      );
     }, tickMs);
     return () => window.clearInterval(timer);
   }, [watching, hopIndex, provider, state.tmdbId, state.type, season, episode]);

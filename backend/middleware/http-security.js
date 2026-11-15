@@ -12,21 +12,44 @@ export function isJsdelivrOrigin(origin) {
   }
 }
 
+function frameAncestorList() {
+  const extras = (process.env.FRAME_ANCESTORS || '')
+    .split(/[\s,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    // Never allow wildcard-all — keep clickjacking surface bounded.
+    .filter((s) => s !== '*' && s !== "'*'");
+  // blob: — about:blank/blob cloak shells iframe the app; 'self' alone rejects them.
+  // jsdelivr — existing game/mirror host pattern.
+  return ["'self'", 'blob:', 'https://cdn.jsdelivr.net', 'https://*.jsdelivr.net', ...extras];
+}
+
+function isFramingOrigin(origin) {
+  if (!origin || typeof origin !== 'string') return false;
+  if (isJsdelivrOrigin(origin)) return true;
+  const allowed = (process.env.FRAME_ANCESTORS || '')
+    .split(/[\s,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return allowed.includes(origin);
+}
+
 export function crossSiteCookieFlags(req) {
   const origin = req?.headers?.origin || '';
-  const cdn = isJsdelivrOrigin(origin);
+  const cross = isJsdelivrOrigin(origin) || isFramingOrigin(origin);
   return {
     httpOnly: true,
     path: '/',
-    secure: process.env.NODE_ENV === 'production' || cdn,
-    sameSite: cdn ? 'none' : 'lax',
-    ...(cdn ? { partitioned: true } : {}),
+    secure: process.env.NODE_ENV === 'production' || cross,
+    sameSite: cross ? 'none' : 'lax',
+    ...(cross ? { partitioned: true } : {}),
   };
 }
 
 export function wrapCrossSiteCookies() {
   return (req, res, next) => {
-    if (!isJsdelivrOrigin(req.headers.origin)) return next();
+    const origin = req.headers.origin || '';
+    if (!isJsdelivrOrigin(origin) && !isFramingOrigin(origin)) return next();
     const orig = res.cookie.bind(res);
     res.cookie = (name, value, options = {}) =>
       orig(name, value, {
@@ -49,14 +72,21 @@ export function createSecurityHeaders() {
       p.startsWith('/n/m/') ||
       p.startsWith('/!!/') ||
       p.startsWith('/!cover!/');
+    const ancestors = remoteFrame
+      ? ["'self'", 'https://cdn.jsdelivr.net', 'https://*.jsdelivr.net', ...frameAncestorList().filter((a) => a !== "'self'")]
+      : frameAncestorList();
+    // Dedupe while preserving order
+    const seen = new Set();
+    const list = ancestors.filter((a) => (seen.has(a) ? false : (seen.add(a), true)));
+
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    if (!remoteFrame) res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    // X-Frame-Options cannot express blob:/allowlists — CSP frame-ancestors is the control.
+    // Omitting XFO lets cloak shells and allowlisted mirrors embed without opening *.
+    res.removeHeader('X-Frame-Options');
     res.setHeader(
       'Content-Security-Policy',
       [
-        remoteFrame
-          ? "frame-ancestors 'self' https://cdn.jsdelivr.net https://*.jsdelivr.net"
-          : "frame-ancestors 'self'",
+        `frame-ancestors ${list.join(' ')}`,
         "base-uri 'self'",
         "object-src 'none'",
         "form-action 'self'",
@@ -82,6 +112,10 @@ export function createCorsConfig() {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
+  const frameExtra = (process.env.FRAME_ANCESTORS || '')
+    .split(/[\s,]+/)
+    .map((s) => s.trim())
+    .filter((s) => s.startsWith('http'));
   const appUrl = (process.env.APP_URL || process.env.PUBLIC_URL || process.env.BASE_URL || '')
     .replace(/\/$/, '');
   const isProd = process.env.NODE_ENV === 'production';
@@ -92,6 +126,7 @@ export function createCorsConfig() {
       if (appUrl && origin === appUrl) return cb(null, true);
       if (isJsdelivrOrigin(origin)) return cb(null, true);
       if (allowed.length && allowed.includes(origin)) return cb(null, true);
+      if (frameExtra.length && frameExtra.includes(origin)) return cb(null, true);
       if (!isProd && !appUrl && allowed.length === 0) return cb(null, true);
       return cb(null, false);
     },

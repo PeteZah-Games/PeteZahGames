@@ -82,6 +82,7 @@
     "express-rate-limit": "^7.5.0",
     "express-session": "^1.19.0",
     "framer-motion": "^12.34.3",
+    "hls.js": "^1.7.4",
     "http-proxy": "^1.18.1",
     "http-proxy-middleware": "^3.0.5",
     "https-proxy-agent": "^5.0.1",

@@ -206,4 +206,112 @@ router.get('/tv/:id/season/:season', async (req, res) => {
   }
 });
 
+/** x8rr/movies-compatible stream API (proxied). Set MOVIES_API_URL to an x8rr instance. */
+function moviesApiBase() {
+  const raw = String(process.env.MOVIES_API_URL || process.env.X8RR_MOVIES_URL || '').trim();
+  if (!raw) return '';
+  return raw.replace(/\/$/, '');
+}
+
+const streamCache = new Map();
+const STREAM_TTL = 1000 * 60 * 8;
+
+async function fetchX8rr(path) {
+  const base = moviesApiBase();
+  if (!base) return null;
+  const key = `x8:${path}`;
+  const hit = streamCache.get(key);
+  if (hit && Date.now() - hit.at < STREAM_TTL) return hit.data;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 18000);
+  try {
+    const r = await fetch(`${base}${path}`, {
+      headers: { Accept: 'application/json' },
+      signal: ctrl.signal,
+    });
+    if (!r.ok) return { streams: [] };
+    const data = await r.json();
+    streamCache.set(key, { at: Date.now(), data });
+    if (streamCache.size > 80) {
+      const first = streamCache.keys().next().value;
+      streamCache.delete(first);
+    }
+    return data;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+router.get('/stream/movie/:id', async (req, res) => {
+  const id = sanitizeId(req.params.id);
+  if (!id) return res.status(400).json({ error: 'Invalid id' });
+  if (!moviesApiBase()) {
+    return res.json({ streams: [], mode: 'embed', providers: 'x8rr-aligned' });
+  }
+  try {
+    const data = await fetchX8rr(`/api/stream/movie/${id}`);
+    const streams = Array.isArray(data?.streams) ? data.streams.slice(0, 12) : [];
+    res.setHeader('Cache-Control', 'private, max-age=60');
+    res.json({ streams, mode: streams.length ? 'direct' : 'embed' });
+  } catch (e) {
+    res.json({ streams: [], mode: 'embed', error: e.message });
+  }
+});
+
+router.get('/stream/tv/:id/:season/:episode', async (req, res) => {
+  const id = sanitizeId(req.params.id);
+  const season = sanitizeId(req.params.season);
+  const episode = sanitizeId(req.params.episode);
+  if (!id || season === null || episode === null) {
+    return res.status(400).json({ error: 'Invalid id' });
+  }
+  if (!moviesApiBase()) {
+    return res.json({ streams: [], mode: 'embed', providers: 'x8rr-aligned' });
+  }
+  try {
+    const data = await fetchX8rr(`/api/stream/tv/${id}/${season}/${episode}`);
+    const streams = Array.isArray(data?.streams) ? data.streams.slice(0, 12) : [];
+    res.setHeader('Cache-Control', 'private, max-age=60');
+    res.json({ streams, mode: streams.length ? 'direct' : 'embed' });
+  } catch (e) {
+    res.json({ streams: [], mode: 'embed', error: e.message });
+  }
+});
+
+/** CORS/HLS proxy via x8rr when configured — keeps playback off the heavy page proxy. */
+router.get('/stream/proxy', async (req, res) => {
+  const base = moviesApiBase();
+  if (!base) return res.status(503).json({ error: 'MOVIES_API_URL not configured' });
+  const target = typeof req.query.url === 'string' ? req.query.url : '';
+  if (!/^https?:\/\//i.test(target) || target.length > 2000) {
+    return res.status(400).json({ error: 'Invalid url' });
+  }
+  const headers = typeof req.query.headers === 'string' ? req.query.headers : '';
+  const qs = new URLSearchParams({ url: target });
+  if (headers) qs.set('headers', headers);
+  try {
+    const r = await fetch(`${base}/api/proxy?${qs.toString()}`, {
+      headers: {
+        Accept: req.headers.accept || '*/*',
+        Range: req.headers.range || undefined,
+      },
+      redirect: 'follow',
+    });
+    res.status(r.status);
+    const pass = ['content-type', 'content-length', 'accept-ranges', 'content-range', 'cache-control'];
+    for (const h of pass) {
+      const v = r.headers.get(h);
+      if (v) res.setHeader(h, v);
+    }
+    const buf = Buffer.from(await r.arrayBuffer());
+    // Cap memory — x8rr already chunks; refuse oversized blobs.
+    if (buf.length > 12 * 1024 * 1024) {
+      return res.status(413).json({ error: 'Payload too large' });
+    }
+    res.end(buf);
+  } catch (e) {
+    res.status(502).json({ error: e.message || 'Proxy failed' });
+  }
+});
+
 export default router;

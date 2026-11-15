@@ -30,7 +30,6 @@ import { setRivetNavigateHandler } from "@/lib/rivet/host";
 import {
   StickyAnchor,
   SideRails,
-  HomeLongAd,
   bootSlotNet,
   syncSurfaceAds,
   setRevIqUid,
@@ -107,7 +106,6 @@ export default function ArcBrowser() {
   const prevUrlRef = useRef(state.focusedTab?.url || "");
   const [stickyOn, setStickyOn] = useState(false);
   const [railsOn, setRailsOn] = useState(false);
-  const [homeAdOn, setHomeAdOn] = useState(false);
 
   useEffect(() => {
     bootSlotNet();
@@ -129,7 +127,6 @@ export default function ArcBrowser() {
     // Sticky + rails + bottom home leaderboard; chrome ads off while playing.
     setStickyOn(!play && (home || isStickySurface(url, framed)));
     setRailsOn(!play && (home || isRailSurface(url)));
-    setHomeAdOn(home && !framed);
     prevUrlRef.current = url;
     try {
       if (url.startsWith("petezah://")) sessionStorage.setItem("pz-vortex-return", url.split("?")[0]);
@@ -487,7 +484,6 @@ export default function ArcBrowser() {
               <>
                 <StickyAnchor enabled={stickyOn} />
                 <SideRails enabled={railsOn} />
-                <HomeLongAd enabled={homeAdOn} />
               </>
             }
           />

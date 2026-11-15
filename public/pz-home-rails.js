@@ -1146,33 +1146,106 @@
     engaged = true;
     apply();
   }, 1200);
+  var VIDEO_CLOSED_KEY = "pz-video-closed";
   var videoClosed = false;
+  try {
+    videoClosed = sessionStorage.getItem(VIDEO_CLOSED_KEY) === "1";
+  } catch (err) {}
+  if (videoClosed) VIDEO_ON = false;
   var VIDEO_X = 22;
-  function videoCloseButton(el) {
-    var btn = el.querySelector("[data-pz-video-x]");
-    if (btn) return;
-    btn = document.createElement("button");
-    btn.type = "button";
-    btn.setAttribute("data-pz-video-x", "1");
-    btn.setAttribute("aria-label", "Close video");
-    btn.textContent = "\u00d7";
-    btn.style.cssText =
-      "position:absolute;top:6px;right:6px;width:" + VIDEO_X + "px;height:" + VIDEO_X + "px;margin:0;padding:0;" +
-      "border:1px solid rgba(255,255,255,.18);border-radius:999px;background:rgba(12,14,18,.45);color:rgba(255,255,255,.55);" +
-      "font:500 13px/" + VIDEO_X + "px system-ui,sans-serif;text-align:center;cursor:pointer;z-index:2147483646;pointer-events:auto;box-shadow:none;";
-    btn.addEventListener("click", function (ev) {
-      ev.preventDefault();
-      ev.stopPropagation();
-      videoClosed = true;
-      el.remove();
-      apply();
-    });
-    el.appendChild(btn);
+  function scrubOrphanVideoPlayers() {
+    // RevIQ outstream often leaves fixed iframes/players outside [data-pz-video].
+    var nodes = document.querySelectorAll("iframe, video, [id*='google_ads'], [id*='div-gpt']");
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      if (!n || !n.isConnected) continue;
+      if (n.closest && n.closest("[data-pz-video], [data-reviq-sticky-ad], .pz-side-l, .pz-side-r, #pz-anchor, [data-ad='anchor'], [data-pz-sky], #root")) {
+        continue;
+      }
+      var cs = window.getComputedStyle(n);
+      if (cs.position !== "fixed" && cs.position !== "absolute") continue;
+      var r = n.getBoundingClientRect();
+      if (r.width < 160 || r.height < 90) continue;
+      // Bottom-right trailer band (and similar floaters).
+      if (r.right < innerWidth - 40 || r.bottom < innerHeight - 40) {
+        if (r.left < innerWidth * 0.45) continue;
+      }
+      try {
+        n.style.setProperty("pointer-events", "none", "important");
+        n.style.setProperty("visibility", "hidden", "important");
+        n.style.setProperty("opacity", "0", "important");
+        n.remove();
+      } catch (err) {}
+    }
+  }
+  function dismissVideoAd() {
+    videoClosed = true;
+    VIDEO_ON = false;
+    try {
+      sessionStorage.setItem(VIDEO_CLOSED_KEY, "1");
+    } catch (err) {}
+    var el = document.querySelector("[data-pz-video]");
+    if (el) {
+      try {
+        el.removeAttribute("data-ad");
+        el.remove();
+      } catch (err) {}
+    }
+    var x = document.getElementById("pz-video-x");
+    if (x) {
+      try { x.remove(); } catch (err) {}
+    }
+    scrubOrphanVideoPlayers();
+    // Second pass — SDK sometimes remounts one tick later.
+    setTimeout(scrubOrphanVideoPlayers, 200);
+    setTimeout(scrubOrphanVideoPlayers, 800);
+  }
+  function placeVideoClose(box) {
+    if (!box || videoClosed) {
+      var gone = document.getElementById("pz-video-x");
+      if (gone) {
+        try { gone.remove(); } catch (err) {}
+      }
+      return;
+    }
+    var btn = document.getElementById("pz-video-x");
+    if (!btn) {
+      btn = document.createElement("button");
+      btn.id = "pz-video-x";
+      btn.type = "button";
+      btn.setAttribute("data-pz-video-x", "1");
+      btn.setAttribute("aria-label", "Close video");
+      btn.textContent = "\u00d7";
+      btn.addEventListener("click", function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        dismissVideoAd();
+        apply();
+      });
+      document.body.appendChild(btn);
+    }
+    var s = btn.style;
+    s.cssText =
+      "position:fixed;width:" + VIDEO_X + "px;height:" + VIDEO_X + "px;margin:0;padding:0;" +
+      "border:1px solid rgba(255,255,255,.22);border-radius:999px;background:rgba(12,14,18,.72);color:rgba(255,255,255,.85);" +
+      "font:600 13px/" + VIDEO_X + "px system-ui,sans-serif;text-align:center;cursor:pointer;" +
+      "z-index:2147483646;pointer-events:auto;box-shadow:0 4px 14px rgba(0,0,0,.35);";
+    s.setProperty("left", Math.round(box.left + box.w - VIDEO_X - 6) + "px", "important");
+    s.setProperty("top", Math.max(8, Math.round(box.top - VIDEO_X - 4)) + "px", "important");
+    s.setProperty("display", "block", "important");
+    s.setProperty("visibility", "visible", "important");
   }
   function placeVideo() {
     var el = document.querySelector("[data-pz-video]");
     if (adsFree() || !VIDEO_ON || !engaged || videoClosed || !videoAllowed() || innerWidth < 320) {
-      if (el) el.remove();
+      if (el) {
+        try {
+          el.removeAttribute("data-ad");
+          el.remove();
+        } catch (err) {}
+      }
+      placeVideoClose(null);
+      if (videoClosed) scrubOrphanVideoPlayers();
       return null;
     }
     if (!el) {
@@ -1181,7 +1254,6 @@
       el.setAttribute("data-pz-video", "1");
       document.body.appendChild(el);
     }
-    videoCloseButton(el);
     var scale = Math.min(1, (innerWidth - 32) / 400);
     var home = homeEl();
     if (home && innerWidth >= 980 && !popupOrOnboardingOpen() && !railQueryOpen(home)) {
@@ -1209,7 +1281,12 @@
     s.setProperty("display", "block", "important");
     s.setProperty("visibility", off ? "hidden" : "visible", "important");
     s.setProperty("pointer-events", off ? "none" : "auto", "important");
-    return off ? null : box;
+    if (off) {
+      placeVideoClose(null);
+      return null;
+    }
+    placeVideoClose(box);
+    return box;
   }
   var SKY_GAP = 184;
   var SKY_DROP = 48;
@@ -1413,6 +1490,10 @@
     hideSideFallback("r");
     hideSideClose("l");
     hideSideClose("r");
+    var vx = document.getElementById("pz-video-x");
+    if (vx) {
+      try { vx.remove(); } catch (err) {}
+    }
     var skies = document.querySelectorAll("[data-pz-sky]");
     for (var i = 0; i < skies.length; i++) {
       try { skies[i].remove(); } catch (err) {}
