@@ -333,6 +333,29 @@ function parseProxyHeaders(raw) {
   }
 }
 
+/**
+ * Lyra `normalized_content_type` — FrameX Citadel disguises MPEG-TS as .jpg / image/jpeg.
+ * Without this, Safari native HLS (and some players) reject the segments.
+ */
+function normalizedContentType(body, upstreamCt) {
+  const buf = body instanceof Uint8Array ? body : null;
+  if (buf && buf.length > 0) {
+    const isTs =
+      buf[0] === 0x47 && (buf.length <= 188 || buf[188] === 0x47);
+    if (isTs) return 'video/mp2t';
+    if (
+      buf.length >= 8 &&
+      (buf[4] === 0x66 /* f */ || buf[4] === 0x73 /* s */ || buf[4] === 0x6d /* m */) &&
+      ((buf[4] === 0x66 && buf[5] === 0x74 && buf[6] === 0x79 && buf[7] === 0x70) || // ftyp
+        (buf[4] === 0x73 && buf[5] === 0x74 && buf[6] === 0x79 && buf[7] === 0x70) || // styp
+        (buf[4] === 0x6d && buf[5] === 0x6f && buf[6] === 0x6f && buf[7] === 0x66)) // moof
+    ) {
+      return 'video/mp4';
+    }
+  }
+  return upstreamCt || 'application/octet-stream';
+}
+
 /** Local CORS/HLS proxy (FrameX/Lyra-style) — keeps playback off Scramjet/wisp. */
 router.get('/stream/proxy', async (req, res) => {
   const target = typeof req.query.url === 'string' ? req.query.url : '';
@@ -357,14 +380,21 @@ router.get('/stream/proxy', async (req, res) => {
         redirect: 'follow',
       });
       res.status(r.status);
-      for (const h of ['content-type', 'content-length', 'accept-ranges', 'content-range', 'cache-control']) {
-        const v = r.headers.get(h);
-        if (v) res.setHeader(h, v);
-      }
       const buf = Buffer.from(await r.arrayBuffer());
       if (buf.length > 12 * 1024 * 1024) {
         return res.status(413).json({ error: 'Payload too large' });
       }
+      for (const h of ['content-length', 'accept-ranges', 'content-range', 'cache-control']) {
+        const v = r.headers.get(h);
+        if (v) res.setHeader(h, v);
+      }
+      const upCt = r.headers.get('content-type') || '';
+      const isPl = upCt.includes('mpegurl') || buf.toString('utf8', 0, 7).startsWith('#EXTM3U');
+      res.setHeader(
+        'Content-Type',
+        isPl ? 'application/vnd.apple.mpegurl' : normalizedContentType(buf, upCt)
+      );
+      res.setHeader('Access-Control-Allow-Origin', '*');
       return res.end(buf);
     } catch (e) {
       // Fall through to local proxy.
@@ -379,9 +409,10 @@ router.get('/stream/proxy', async (req, res) => {
     const extra = parseProxyHeaders(
       typeof req.query.headers === 'string' ? req.query.headers : ''
     );
-    // FrameX CDNs expect framextv referer when the client passed it through.
+    // FrameX CDNs expect framextv / rivestream referer when the client passed it through.
     const headers = {
       'User-Agent': PROXY_UA,
+      Accept: 'application/vnd.apple.mpegurl,application/x-mpegURL,video/mp2t,video/mp4,application/octet-stream,*/*',
       Referer: origin + '/',
       Origin: origin,
       ...extra,
@@ -397,28 +428,26 @@ router.get('/stream/proxy', async (req, res) => {
       headers.Range = req.headers.range;
     }
 
-    const r = await fetch(target, { headers, signal: ac.signal });
-    if (!r.ok) return res.status(r.status).end();
+    const r = await fetch(target, { headers, signal: ac.signal, redirect: 'follow' });
+    if (!r.ok) {
+      console.log('[stream-proxy] upstream', r.status, target.slice(0, 120));
+      return res.status(r.status).end();
+    }
 
     const ct = r.headers.get('content-type') || '';
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 'private, max-age=30');
 
-    const reader = r.body?.getReader?.();
-    const first = reader ? await reader.read() : { done: true, value: undefined };
-    const head = first.value ? new TextDecoder().decode(first.value.subarray(0, 16)) : '';
+    // Buffer the body — streaming readers have been flaky with some CDNs under Express.
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (buf.length > 12 * 1024 * 1024) {
+      return res.status(413).json({ error: 'Payload too large' });
+    }
+    const head = buf.toString('utf8', 0, Math.min(16, buf.length));
     const isPlaylist = ct.includes('mpegurl') || head.trimStart().startsWith('#EXTM3U');
 
     if (isPlaylist) {
-      const chunks = first.value ? [first.value] : [];
-      if (reader) {
-        for (;;) {
-          const c = await reader.read();
-          if (c.done) break;
-          chunks.push(c.value);
-        }
-      }
-      let text = new TextDecoder().decode(Buffer.concat(chunks.map((c) => Buffer.from(c))));
+      let text = buf.toString('utf8');
       const hostToken = new URL(target).searchParams.get('token');
       const hq = req.query.headers
         ? `&headers=${encodeURIComponent(String(req.query.headers))}`
@@ -438,22 +467,16 @@ router.get('/stream/proxy', async (req, res) => {
     }
 
     res.status(r.status);
-    for (const h of ['content-type', 'content-length', 'content-range', 'accept-ranges']) {
+    for (const h of ['content-range', 'accept-ranges']) {
       const v = r.headers.get(h);
       if (v) res.setHeader(h, v);
     }
-    if (!ct) res.setHeader('Content-Type', 'application/octet-stream');
-    if (first.done || !reader) return res.end();
-    res.write(Buffer.from(first.value));
-    for (;;) {
-      const c = await reader.read();
-      if (c.done) break;
-      if (!res.write(Buffer.from(c.value))) {
-        await new Promise((resolve) => res.once('drain', resolve));
-      }
-    }
-    res.end();
+    // Sniff MPEG-TS / fMP4 — do NOT trust upstream image/jpeg disguises (Lyra).
+    res.setHeader('Content-Type', normalizedContentType(buf, ct));
+    res.setHeader('Content-Length', String(buf.length));
+    return res.end(buf);
   } catch (e) {
+    console.log('[stream-proxy] error', e.message, String(req.query.url || '').slice(0, 120));
     if (!res.headersSent) res.status(502).json({ error: e.message || 'Proxy failed' });
     else res.destroy();
   }

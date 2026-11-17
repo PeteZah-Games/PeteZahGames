@@ -782,52 +782,57 @@ function MoviePlayer({
 
       const src = proxyUrl(stream);
       const isHls =
-        /\.m3u8(\?|$)/i.test(stream.url) || String(stream.type || "").toLowerCase() === "hls";
+        /\.m3u8(\?|$)/i.test(stream.url) ||
+        /\/hls[/_]/i.test(stream.url) ||
+        String(stream.type || "").toLowerCase() === "hls";
       try {
-        if (isHls && video.canPlayType("application/vnd.apple.mpegurl")) {
-          video.src = src;
-        } else if (isHls) {
+        // Always prefer hls.js for FrameX — Citadel segments are MPEG-TS disguised as .jpg;
+        // Safari native HLS is picky even after the proxy rewrites Content-Type to video/mp2t.
+        if (isHls) {
           const Hls = await loadHlsCtor();
           if (cancelled || token !== playToken) return false;
-          if (!Hls || !Hls.isSupported()) {
+          if (Hls && Hls.isSupported()) {
+            const inst = new Hls({
+              enableWorker: false,
+              maxBufferLength: 24,
+              maxMaxBufferLength: 48,
+              backBufferLength: 12,
+              manifestLoadingMaxRetry: 3,
+              levelLoadingMaxRetry: 3,
+              fragLoadingMaxRetry: 4,
+            });
+            const errEvt = Hls.Events?.ERROR || "hlsError";
+            const netErr = Hls.ErrorTypes?.NETWORK_ERROR || "networkError";
+            const mediaErr = Hls.ErrorTypes?.MEDIA_ERROR || "mediaError";
+            inst.on(errEvt, (_e, data) => {
+              if (!data?.fatal || playing || failed || token !== playToken) return;
+              if (data.type === netErr) {
+                try {
+                  inst.startLoad?.();
+                  return;
+                } catch {}
+              } else if (data.type === mediaErr && mediaRecoveries < 2) {
+                mediaRecoveries += 1;
+                try {
+                  inst.recoverMediaError?.();
+                  return;
+                } catch {}
+              }
+              fail(data.details || "hls");
+            });
+            const parsedEvt = Hls.Events?.MANIFEST_PARSED || "hlsManifestParsed";
+            inst.on(parsedEvt, () => {
+              void video.play().catch(() => {});
+            });
+            inst.loadSource(src);
+            inst.attachMedia(video);
+            hls = inst;
+          } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+            video.src = src;
+          } else {
             fail("hls unsupported");
             return false;
           }
-          const inst = new Hls({
-            enableWorker: false,
-            maxBufferLength: 24,
-            maxMaxBufferLength: 48,
-            backBufferLength: 12,
-            manifestLoadingMaxRetry: 3,
-            levelLoadingMaxRetry: 3,
-            fragLoadingMaxRetry: 4,
-          });
-          const errEvt = Hls.Events?.ERROR || "hlsError";
-          const netErr = Hls.ErrorTypes?.NETWORK_ERROR || "networkError";
-          const mediaErr = Hls.ErrorTypes?.MEDIA_ERROR || "mediaError";
-          inst.on(errEvt, (_e, data) => {
-            if (!data?.fatal || playing || failed || token !== playToken) return;
-            if (data.type === netErr) {
-              try {
-                inst.startLoad?.();
-                return;
-              } catch {}
-            } else if (data.type === mediaErr && mediaRecoveries < 2) {
-              mediaRecoveries += 1;
-              try {
-                inst.recoverMediaError?.();
-                return;
-              } catch {}
-            }
-            fail(data.details || "hls");
-          });
-          const parsedEvt = Hls.Events?.MANIFEST_PARSED || "hlsManifestParsed";
-          inst.on(parsedEvt, () => {
-            void video.play().catch(() => {});
-          });
-          inst.loadSource(src);
-          inst.attachMedia(video);
-          hls = inst;
         } else {
           video.src = src;
         }
