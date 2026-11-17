@@ -643,7 +643,7 @@ function MoviePlayer({
     };
 
     const proxyUrl = (stream: { url: string; headers?: Record<string, string> }) => {
-      let u = `/api/tmdb/stream/proxy?url=${encodeURIComponent(stream.url)}`;
+      let u = `/api/tmdb/stream/media?src=${encodeURIComponent(stream.url)}`;
       if (stream.headers) u += `&headers=${encodeURIComponent(JSON.stringify(stream.headers))}`;
       return u;
     };
@@ -694,7 +694,7 @@ function MoviePlayer({
         track.kind = "subtitles";
         track.label = t.label || t.language || `CC ${i + 1}`;
         track.srclang = t.language && t.language !== "und" ? t.language : "en";
-        track.src = `/api/tmdb/stream/proxy?url=${encodeURIComponent(t.url)}`;
+        track.src = `/api/tmdb/stream/media?src=${encodeURIComponent(t.url)}`;
         if (i === defaultIdx && ccOn) track.default = true;
         video.appendChild(track);
       });
@@ -724,7 +724,7 @@ function MoviePlayer({
 
       setPlayMode("embed");
       playModeRef.current = "embed";
-      setSourceNote(regionId === TOR_REGION ? "Loading via Tor…" : "Loading via proxy…");
+      setSourceNote(regionId === TOR_REGION ? "Loading via Tor…" : "Loading stream…");
       await applyVpnRegion(regionId);
       if (cancelled) return;
 
@@ -757,7 +757,7 @@ function MoviePlayer({
           iframeRef.current = iframe;
           setFrameReady(true);
           setLoadError("");
-          setSourceNote(regionId === TOR_REGION ? "Proxy · Tor" : "Proxy · Default");
+          setSourceNote(regionId === TOR_REGION ? "Relay · Tor" : "Source · Default");
           return true;
         } catch (e: any) {
           setLoadError(e?.message || "Failed to start player");

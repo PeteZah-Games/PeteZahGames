@@ -357,12 +357,15 @@ function normalizedContentType(body, upstreamCt) {
   return upstreamCt || 'application/octet-stream';
 }
 
-/** Local CORS/HLS proxy (FrameX/Lyra-style) — keeps playback off Scramjet/wisp. */
-router.get('/stream/proxy', async (req, res) => {
-  const target = typeof req.query.url === 'string' ? req.query.url : '';
+/** Local CORS/HLS media relay (FrameX/Lyra-style) — keeps playback off Scramjet/wisp. */
+async function streamMediaRelay(req, res) {
+  const target =
+    (typeof req.query.src === 'string' && req.query.src) ||
+    (typeof req.query.url === 'string' && req.query.url) ||
+    '';
   // Worker/CDN stream URLs often carry long tokens — 2500 was rejecting valid sources.
   if (!/^https?:\/\//i.test(target) || target.length > 12000) {
-    return res.status(400).json({ error: 'Invalid url' });
+    return res.status(400).json({ error: 'Invalid src' });
   }
 
   // Prefer remote x8rr proxy if configured (optional).
@@ -470,7 +473,7 @@ router.get('/stream/proxy', async (req, res) => {
         if (hostToken && !abs.includes('token=')) {
           abs += (abs.includes('?') ? '&' : '?') + 'token=' + hostToken;
         }
-        return `/api/tmdb/stream/proxy?url=${encodeURIComponent(abs)}${hq}`;
+        return `/api/tmdb/stream/media?src=${encodeURIComponent(abs)}${hq}`;
       };
       text = text
         .replace(/^(?!#)(\S+)$/gm, (line) => wrap(line))
@@ -499,10 +502,13 @@ router.get('/stream/proxy', async (req, res) => {
     res.setHeader('Content-Length', String(buf.length));
     return res.end(buf);
   } catch (e) {
-    console.log('[stream-proxy] error', e.message, String(req.query.url || '').slice(0, 120));
-    if (!res.headersSent) res.status(502).json({ error: e.message || 'Proxy failed' });
+    console.log('[stream-media] error', e.message, String(req.query.src || req.query.url || '').slice(0, 120));
+    if (!res.headersSent) res.status(502).json({ error: e.message || 'Relay failed' });
     else res.destroy();
   }
-});
+}
+
+router.get('/stream/media', streamMediaRelay);
+router.get('/stream/proxy', streamMediaRelay);
 
 export default router;

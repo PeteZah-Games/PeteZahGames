@@ -568,7 +568,7 @@ function NewTabSearchBar({
           onKeyDown={(e) => {
             if (e.key === "Enter") handleSubmit();
           }}
-          placeholder="Enter a website or search query"
+          placeholder="Find a page or search…"
           className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none relative z-[1]"
           spellCheck={false}
         />
@@ -1284,7 +1284,7 @@ function ExtensionAwareIframe({
       ref={ref}
       src={src}
       className="w-full h-full border-none"
-      title={hrefs.modeP()}
+      title="content"
       referrerPolicy="no-referrer"
       sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals allow-presentation"
       allow="fullscreen; autoplay; encrypted-media; picture-in-picture"

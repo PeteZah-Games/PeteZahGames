@@ -184,7 +184,7 @@ export function AdReportsPanel({ C }: { C: C }) {
           {ac.error && data?.configured ? (
             <p style={{ fontSize: 12, color: C.danger, margin: "0 0 14px" }}>
               ExoClick API error: {String(ac.error)}
-              {data?.proxy ? " (proxy on)" : " — if your VPS IP is blocked, set EXOCLICK_HTTP_PROXY"}.
+              {data?.proxy ? " (relay on)" : " — if your VPS IP is blocked, set EXOCLICK_HTTP_PROXY"}.
               Local counts are still live.
             </p>
           ) : null}

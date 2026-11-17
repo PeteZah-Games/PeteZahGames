@@ -594,7 +594,7 @@ export default function ExtensionsPage({ onNavigate }: { onNavigate: (url: strin
             <Info size={13} style={{ flexShrink: 0, marginTop: 1, color: S.accent }} />
             <span>
               Browser extensions (including a real privacy filter) run inside the tab runtime on web
-              pages only. They are not installed on your Chromebook. Optional. Does not bypass school or employer
+              pages only. They are not installed on your Chromebook. Optional. Does not override district or employer
               policies.
             </span>
           </div>

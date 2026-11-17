@@ -61,7 +61,7 @@ const SITE_PRESETS = [
   { id: "petezah",   label: "PeteZah",           favicon: "/logo.png" },
 ];
 
-type Section = "profile" | "proxy" | "get-links" | "achievements" | "appearance" | "cloaking" | "behavior" | "shortcuts" | "data" | "mentions" | "admin" | "users" | "live" | "firefox-vm" | "game-stats" | "link-stats" | "ad-reports" | "custom-ai" | "monitoring" | "errors" | "updates" | "ai-prompts";
+type Section = "profile" | "network" | "proxy" | "get-links" | "achievements" | "appearance" | "cloaking" | "behavior" | "shortcuts" | "data" | "mentions" | "admin" | "users" | "live" | "firefox-vm" | "game-stats" | "link-stats" | "ad-reports" | "custom-ai" | "monitoring" | "errors" | "updates" | "ai-prompts";
 
 function applySettingsNow(s: Record<string, string>) {
   if (s.theme) {
@@ -435,7 +435,7 @@ export default function AccountPage({ onNavigate }: { onNavigate: (url: string) 
 
   function openAboutBlank() {
     const mode = localStorage.getItem("linkCloaking") === "about:blank" ? "about:blank" : "blob:";
-    const title = localStorage.getItem("siteTitle") || "Home - Classroom";
+    const title = localStorage.getItem("siteTitle") || "HypeStudy";
     let icon = localStorage.getItem("siteLogo") || defaultBrandSrc();
     if (icon.startsWith("/")) icon = window.location.origin + icon;
     const appUrl = window.location.origin + "/";
@@ -2968,8 +2968,10 @@ export default function AccountPage({ onNavigate }: { onNavigate: (url: string) 
 
             {section === "cloaking" && (
               <div style={{ maxWidth: "440px" }}>
-                <h2 style={{ fontSize: "15px", fontWeight: 700, color: C.text, margin: "0 0 3px" }}>Cloaking</h2>
-                <p style={{ fontSize: "11px", color: C.textSub, margin: "0 0 20px" }}>Disguise the tab to look like another site</p>
+                <h2 style={{ fontSize: "15px", fontWeight: 700, color: C.text, margin: "0 0 3px" }}>
+                  <ObfuscatedText as="span">{marks.cloak()}</ObfuscatedText>
+                </h2>
+                <p style={{ fontSize: "11px", color: C.textSub, margin: "0 0 20px" }}>Match the tab title and icon to a study surface</p>
 
                 <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: C.textMuted, margin: "0 0 8px" }}>Quick Presets</p>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", marginBottom: "18px" }}>
@@ -2992,14 +2994,14 @@ export default function AccountPage({ onNavigate }: { onNavigate: (url: string) 
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "20px" }}>
-                  <Field label="Custom tab title" value={s.siteTitle || ""} onChange={(e: any) => setVal("siteTitle", e.target.value)} placeholder="e.g. Google Classroom" />
+                  <Field label="Custom tab title" value={s.siteTitle || ""} onChange={(e: any) => setVal("siteTitle", e.target.value)} placeholder="e.g. HypeStudy" />
                   <Field label="Custom favicon URL" value={s.siteLogo || ""} onChange={(e: any) => setVal("siteLogo", e.target.value)} placeholder="https://..." icon={Lock} />
                 </div>
 
                 <Divider />
-                <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: C.textMuted, margin: "14px 0 6px" }}>About:blank / blob cloak</p>
+                <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: C.textMuted, margin: "14px 0 6px" }}>About:blank / blob cover</p>
                 <p style={{ fontSize: "11px", color: C.textSub, margin: "0 0 10px" }}>
-                  Use Behavior → Autocloak for the Classroom leftover-tab trick. Focus-based title swapping is off.
+                  Use Behavior → Autocloak for the leftover-tab cover. Focus-based title swapping is off.
                 </p>
 
                 <Divider />
@@ -3439,7 +3441,7 @@ export default function AccountPage({ onNavigate }: { onNavigate: (url: string) 
                           <p style={{ margin: "0 0 12px", fontSize: 11, color: C.textSub, lineHeight: 1.4 }}>
                             {secModal.action === "attack-on" && "Turn on attack mode. Untrusted traffic will be rejected."}
                             {secModal.action === "attack-off" && "Turn off forced attack mode."}
-                            {secModal.action === "kill-on" && "Activate kill switch. Proxy and most APIs will stop until you disable it."}
+                            {secModal.action === "kill-on" && "Activate kill switch. Network and most APIs will stop until you disable it."}
                             {secModal.action === "kill-off" && "Deactivate kill switch and restore service."}
                           </p>
                           <input
@@ -4832,7 +4834,7 @@ export default function AccountPage({ onNavigate }: { onNavigate: (url: string) 
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
                   {[
                     ["Mercury Workshop", "Page rewrite engine"],
-                    ["Waves Proxy / Mochi", "Proxy transport & networking"],
+                    ["Waves / Mochi", "Transport & networking"],
                     ["Puter", "Firefox WASM virtual machine"],
                     ["Selenite", "HTML5 catalog contributions (third-party / community)"],
                     ["CrazyGames & partners", "Embedded catalog providers"],

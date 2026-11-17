@@ -30,7 +30,7 @@ export const SHORTCUT_META: {
 }[] = [
   { id: "newTab", label: "New tab", desc: "Open a blank tab" },
   { id: "closeTab", label: "Close tab", desc: "Close the active tab" },
-  { id: "focusUrl", label: "Focus address bar", desc: "Jump to the URL field" },
+  { id: "focusUrl", label: "Focus location field", desc: "Jump to the location field" },
   { id: "history", label: "History", desc: "Open browsing history" },
   { id: "extensions", label: "Extensions", desc: "Open extensions" },
   { id: "bookmarks", label: "Bookmarks", desc: "Open bookmarks" },

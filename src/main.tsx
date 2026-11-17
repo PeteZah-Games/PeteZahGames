@@ -178,7 +178,7 @@ function cloakShellHtml(title: string, icon: string, iframeSrc: string): string 
 function cloakInPopup(iframeSrc: string, mode: string): boolean {
   if (window !== window.top) return false;
   if (/Firefox/.test(navigator.userAgent)) return false;
-  const title = localStorage.getItem("siteTitle") || "Home - Classroom";
+  const title = localStorage.getItem("siteTitle") || "HypeStudy";
   let icon = localStorage.getItem("siteLogo") || defaultBrandSrc();
   if (icon.startsWith("/")) icon = window.location.origin + icon;
   const html = cloakShellHtml(title, icon, iframeSrc);

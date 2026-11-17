@@ -724,8 +724,8 @@ export function BehaviorSettings(props: Props) {
         <div style={{ borderBottom: `1px solid ${C.border}` }}>
           <ToggleRow
             C={C}
-            label="Autocloak"
-            desc="Open in a cloaked blob:/about:blank window and leave Classroom in the original tab"
+            label="Auto-cover"
+            desc="Open in a covered blob:/about:blank window and leave a study tab in the original window"
             checked={s.autocloak === "true"}
             onChange={() => {
               const next = s.autocloak !== "true";
@@ -742,8 +742,8 @@ export function BehaviorSettings(props: Props) {
           />
         </div>
         <div style={{ borderBottom: `1px solid ${C.border}`, padding: "10px 14px" }}>
-          <div style={{ fontSize: 12, fontWeight: 650, color: C.text, marginBottom: 4 }}>Link cloak mode</div>
-          <div style={{ fontSize: 10, color: C.textSub, marginBottom: 8 }}>How autocloak / #blank wraps the session</div>
+          <div style={{ fontSize: 12, fontWeight: 650, color: C.text, marginBottom: 4 }}>Link cover mode</div>
+          <div style={{ fontSize: 10, color: C.textSub, marginBottom: 8 }}>How auto-cover / #blank wraps the session</div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {[
               { id: "blob:", label: "blob: (stronger)" },
@@ -1017,7 +1017,7 @@ export function ProxySettings(props: Props) {
         <ObfuscatedText as="span">{marks.d()}</ObfuscatedText>
       </h2>
       <p style={{ fontSize: 11, color: C.textSub, margin: "0 0 18px", lineHeight: 1.45 }}>
-        Tunnel endpoint, search, identity, and small quality-of-life switches for the browser shell.
+        Tunnel endpoint, search, identity, and small quality-of-life switches for the workspace.
       </p>
 
       <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: C.textMuted, margin: "0 0 8px" }}>

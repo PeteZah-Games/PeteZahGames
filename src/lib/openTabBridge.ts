@@ -3,7 +3,7 @@ import { hrefs } from "@/lib/uiMarks";
 
 export type OpenTabRequest = {
   url: string;
-  mode?: "proxy" | "ad" | "direct";
+  mode?: "network" | "proxy" | "ad" | "direct";
   soft?: boolean;
 };
 
@@ -93,7 +93,7 @@ function looksLikePopup(features?: string | null): boolean {
   return /(?:^|,)\s*(?:width|height|left|top|popup)\s*=/i.test(features);
 }
 
-export function classifyOpenUrl(url: string): "ad" | "proxy" | "skip" {
+export function classifyOpenUrl(url: string): "ad" | "network" | "proxy" | "skip" {
   const u = unwrapProxyUrl(String(url || "").trim());
   if (!u || u === "about:blank") return "skip";
   if (u.startsWith("javascript:") || u.startsWith("data:") || u.startsWith("blob:")) return "skip";
@@ -115,7 +115,7 @@ export function classifyOpenUrl(url: string): "ad" | "proxy" | "skip" {
         const decoded = unwrapProxyUrl(parsed.href);
         if (decoded !== parsed.href && /^https?:\/\//i.test(decoded)) {
           if (isAdUrl(decoded)) return "ad";
-          return hrefs.modeP() as "proxy";
+          return hrefs.modeP() as "network";
         }
         return "skip";
       }
@@ -131,7 +131,7 @@ export function classifyOpenUrl(url: string): "ad" | "proxy" | "skip" {
   } catch {}
 
   if (isAdUrl(u)) return "ad";
-  if (/^https?:\/\//i.test(u)) return hrefs.modeP() as "proxy";
+  if (/^https?:\/\//i.test(u)) return hrefs.modeP() as "network";
   return "skip";
 }
 
@@ -157,7 +157,7 @@ function resolveOpen(
   raw: string,
   baseHref?: string,
   opts?: { forceAd?: boolean; features?: string | null }
-): { url: string; mode: "ad" | "proxy" | "skip" } {
+): { url: string; mode: "ad" | "network" | "proxy" | "skip" } {
   const resolved = unwrapProxyUrl(raw, baseHref);
   let mode = classifyOpenUrl(resolved);
   if (mode === "skip") return { url: resolved, mode };
@@ -266,7 +266,7 @@ export function openNativeWindow(url: string, target = "_blank") {
   }
 }
 
-function postOpen(resolved: string, mode: "ad" | "proxy") {
+function postOpen(resolved: string, mode: "ad" | "network" | "proxy") {
   window.postMessage(
     {
       source: "pz-open-trap",
