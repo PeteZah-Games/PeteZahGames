@@ -90,7 +90,7 @@ const TMDB_IMG = "https://image.tmdb.org/t/p/w342";
 const TMDB_BACKDROP = "https://image.tmdb.org/t/p/w1280";
 const TMDB_STILL = "https://image.tmdb.org/t/p/w300";
 
-/** Embed fallbacks (Lyra-style hosts) when Movy HLS fails — played via wisp, then Tor. */
+/** Embed fallbacks when FrameX HLS fails — Tor first (providers ban bare VPS IPs). */
 const PROVIDERS = [
   {
     id: "vidfast",
@@ -133,17 +133,20 @@ const PROVIDERS = [
 const DEFAULT_REGION = "default";
 const TOR_REGION = "tor";
 const BLACK_FAIL_MS = 20000;
-/** Don't skip a Movy server until it's had this long to start. */
+/** Don't skip a FrameX source until it's had this long to start. */
 const SOURCE_MIN_MS = 12000;
-/** Auto-try this many Movy HLS urls before embed/Tor fallback. */
+/** Auto-try this many FrameX HLS urls before embed fallback. */
 const MAX_AUTO_SOURCES = 4;
-/** Embed via default wisp first; switch to Tor after ~20s black. */
+/**
+ * Embed hops — Tor first (same idea as routing FrameX through Tor),
+ * then default wisp, then more Tor providers.
+ */
 const AUTO_SOURCE_HOPS = [
-  { provider: "vidfast", region: DEFAULT_REGION, label: "VidFast" },
   { provider: "vidfast", region: TOR_REGION, label: "VidFast · Tor" },
-  { provider: "vidsrc", region: DEFAULT_REGION, label: "VidSrc" },
   { provider: "vidsrc", region: TOR_REGION, label: "VidSrc · Tor" },
+  { provider: "vidfast", region: DEFAULT_REGION, label: "VidFast" },
   { provider: "vidlink", region: TOR_REGION, label: "VidLink · Tor" },
+  { provider: "vidsrc", region: DEFAULT_REGION, label: "VidSrc" },
 ] as const;
 
 function collectVideos(root: Window | Document | ShadowRoot, depth = 0, out: HTMLVideoElement[] = []): HTMLVideoElement[] {
@@ -480,8 +483,8 @@ function MoviePlayer({
     if (prev !== DEFAULT_REGION && prev !== TOR_REGION) {
       localStorage.setItem("pz-vpn-before-movies", prev);
     }
-    // Start on default wisp; auto-hop flips to Tor after ~20s if playback stays black.
-    applyVpnRegion(DEFAULT_REGION);
+    // Prefer Tor for movie embeds (FrameX resolve is Tor server-side; embeds match).
+    applyVpnRegion(TOR_REGION);
     return () => {
       const restore = localStorage.getItem("pz-vpn-before-movies") || DEFAULT_REGION;
       applyVpnRegion(restore);
@@ -735,11 +738,11 @@ function MoviePlayer({
           void playDirect(list, next, true);
           return;
         }
-        setSourceNote("Direct streams failed — trying proxy…");
+        setSourceNote("Direct streams failed — trying Tor embed…");
         hopIndexRef.current = 0;
         setHopIndex(0);
         autoHopRef.current = true;
-        void startEmbed(DEFAULT_REGION);
+        void startEmbed(TOR_REGION);
       };
 
       /** Wait out SOURCE_MIN_MS so we don't burn through the list on first error blip. */
@@ -867,8 +870,8 @@ function MoviePlayer({
         return;
       }
 
-      // Lyra-style: resolve Movy HLS, play natively; if empty/fail → embed wisp → Tor.
-      setSourceNote("Finding stream…");
+      // Lyra-style: FrameX over Tor → native HLS; if empty/fail → Tor embeds.
+      setSourceNote("Finding stream (FrameX)…");
       try {
         const path =
           state.type === "tv"
@@ -891,7 +894,7 @@ function MoviePlayer({
       autoHopRef.current = true;
       playModeRef.current = "embed";
       setPlayMode("embed");
-      await startEmbed(DEFAULT_REGION);
+      await startEmbed(TOR_REGION);
     })();
 
     sealTimer = setInterval(() => {

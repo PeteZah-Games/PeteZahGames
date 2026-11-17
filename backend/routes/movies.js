@@ -208,7 +208,7 @@ router.get('/tv/:id/season/:season', async (req, res) => {
 });
 
 /**
- * Direct streams via Lyra-style Movy resolve (backend/lib/movie-streams).
+ * Direct streams via Lyra-style FrameX resolve over Tor (backend/lib/movie-streams).
  * Optional MOVIES_API_URL still works as an override to a remote instance.
  */
 function moviesApiBase() {
@@ -333,7 +333,7 @@ function parseProxyHeaders(raw) {
   }
 }
 
-/** Local CORS/HLS proxy (Lyra/Movy-style) — keeps playback off Scramjet/wisp. */
+/** Local CORS/HLS proxy (FrameX/Lyra-style) — keeps playback off Scramjet/wisp. */
 router.get('/stream/proxy', async (req, res) => {
   const target = typeof req.query.url === 'string' ? req.query.url : '';
   // Worker/CDN stream URLs often carry long tokens — 2500 was rejecting valid sources.
@@ -379,7 +379,13 @@ router.get('/stream/proxy', async (req, res) => {
     const extra = parseProxyHeaders(
       typeof req.query.headers === 'string' ? req.query.headers : ''
     );
-    const headers = { 'User-Agent': PROXY_UA, Referer: origin + '/', ...extra };
+    // FrameX CDNs expect framextv referer when the client passed it through.
+    const headers = {
+      'User-Agent': PROXY_UA,
+      Referer: origin + '/',
+      Origin: origin,
+      ...extra,
+    };
     const range = String(req.headers.range || '').match(/^bytes=(\d+)-(\d*)$/);
     if (range) {
       const start = Number(range[1]);

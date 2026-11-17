@@ -1,20 +1,24 @@
 /**
- * Movie/TV stream resolution — Lyra Movy method first
- * (https://github.com/selenesia/lyra), then empty → client embed/Tor.
+ * Movie/TV streams — FrameX via Tor (Lyra titles method).
+ * https://github.com/selenesia/lyra routes FrameX; we Tor it so the VPS IP stays clean.
  */
-import { resolveMovy } from "./movy.js";
+import { resolveFramex } from "./framex.js";
+import { torConfigured, torAvailable } from "./torFetch.js";
 
-const PROVIDERS = [
-  { id: "movy", name: "Movy" },
-];
+const PROVIDERS = [{ id: "framex", name: "FrameX" }];
 
-/** Lyra-style: resolve playable HLS via Movy city servers. */
 export async function scrapeAll(type, tmdbId, season, episode, _tasks, onSettled) {
   let streams = [];
   try {
-    streams = await resolveMovy(type, tmdbId, season || 1, episode || 1);
+    streams = await resolveFramex(type, tmdbId, season || 1, episode || 1);
   } catch (e) {
-    console.log("[movie-streams] movy:", e.message);
+    console.log("[movie-streams] framex:", e.message);
+  }
+  if (!streams.length) {
+    console.log(
+      "[movie-streams] no framex sources",
+      torConfigured() ? `(tor socks configured, available=${await torAvailable().catch(() => false)})` : "(tor socks not configured — set TOR_SOCKS_URL)"
+    );
   }
   if (onSettled) {
     try {
