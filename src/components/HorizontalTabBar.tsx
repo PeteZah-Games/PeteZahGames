@@ -37,14 +37,14 @@ function tabMark(tab: Tab) {
 
 function tabLabel(tab: Tab) {
   const url = (tab.url || "").split("?")[0];
-  if (url === "petezah://newtab" || !url) return "New Tab";
+  if (url === "petezah://newtab" || !url) return "Home";
   if (url === "petezah://trending") return "Trending";
-  if (tab.title && tab.title !== "New Tab") return tab.title;
+  if (tab.title && tab.title !== "New Tab" && tab.title !== "Home") return tab.title;
   if (url.startsWith("petezah://")) {
     const name = url.replace("petezah://", "");
     return name.charAt(0).toUpperCase() + name.slice(1);
   }
-  return tab.url || "New Tab";
+  return tab.url || "Home";
 }
 
 export default function HorizontalTabBar({
@@ -76,7 +76,7 @@ export default function HorizontalTabBar({
 
   return (
     <div
-      className="chrome-bar flex-shrink-0 flex items-end gap-0 px-2 pt-1.5 min-h-[40px] overflow-x-auto"
+      className="shell-row flex-shrink-0 flex items-end gap-0 px-2 pt-1.5 min-h-[40px] overflow-x-auto"
       style={{
         borderBottom: "1px solid hsla(210, 40%, 80%, 0.08)",
         scrollbarWidth: "none",

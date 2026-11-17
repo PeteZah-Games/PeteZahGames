@@ -2,7 +2,6 @@ import { useRef, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
-  Lock,
   ArrowLeft,
   ArrowRight,
   RotateCw,
@@ -340,42 +339,12 @@ export default function Toolbar({
 
   return (
     <div
-      className="relative z-20 flex items-center gap-2 px-4 h-11 flex-shrink-0 chrome-bar"
+      className="relative z-20 flex items-center gap-2 px-4 h-11 flex-shrink-0 shell-row"
       style={{ borderBottom: "1px solid hsla(210, 40%, 80%, 0.08)" }}
     >
-      <div className="flex items-center gap-0.5">
-        <button
-          onClick={handleBack}
-          disabled={isNewTab}
-          className="p-1.5 rounded-lg hover:bg-white/5 transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
-          style={{ color: "hsla(0,0%,100%,0.78)" }}
-          title="Back"
-        >
-          <ArrowLeft size={13} />
-        </button>
-        <button
-          onClick={handleForward}
-          disabled={isNewTab}
-          className="p-1.5 rounded-lg hover:bg-white/5 transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
-          style={{ color: "hsla(0,0%,100%,0.78)" }}
-          title="Forward"
-        >
-          <ArrowRight size={13} />
-        </button>
-        <button
-          onClick={handleReload}
-          disabled={isNewTab}
-          className="p-1.5 rounded-lg hover:bg-white/5 transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
-          style={{ color: "hsla(0,0%,100%,0.78)" }}
-          title="Reload"
-        >
-          <RotateCw size={12} />
-        </button>
-      </div>
-
       <div
         ref={suggestWrapRef}
-        className={`relative flex-1 flex items-center gap-2 rounded-xl px-3 py-1.5 mx-2 transition-all duration-200 cursor-text ${
+        className={`relative flex-1 flex items-center gap-2 rounded-xl px-3 py-1.5 transition-all duration-200 cursor-text ${
           isUrlFocused ? "ring-1 ring-white/20" : "border border-white/10"
         }`}
         style={{ background: isUrlFocused ? "hsla(210, 40%, 90%, 0.08)" : "hsla(210, 40%, 90%, 0.05)" }}
@@ -384,27 +353,7 @@ export default function Toolbar({
           onUrlFocus(true);
         }}
       >
-        <AnimatePresence mode="wait">
-          {isUrlFocused ? (
-            <motion.div
-              key="search"
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-            >
-              <Search size={12} style={{ color: "hsla(0,0%,100%,0.45)" }} />
-            </motion.div>
-          ) : (
-            <motion.div
-              key="lock"
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-            >
-              <Lock size={11} style={{ color: "hsla(0,0%,100%,0.4)" }} />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <Search size={12} style={{ color: "hsla(0,0%,100%,0.45)", flexShrink: 0 }} />
 
         <input
           ref={inputRef}
@@ -446,8 +395,8 @@ export default function Toolbar({
               setSuggestOpen(false);
             }
           }}
-          placeholder="Find a page or search…"
-          className="pz-url-input flex-1 bg-transparent text-[12px] outline-none placeholder:text-white/35"
+          placeholder="Look up a topic…"
+          className="pz-loc-field flex-1 bg-transparent text-[12px] outline-none placeholder:text-white/35"
           style={{
             color: "hsla(0,0%,100%,0.9)",
             fontFamily: urlObfuscated
@@ -476,7 +425,7 @@ export default function Toolbar({
         {!isNewTab && activeTab?.url && !activeTab.url.startsWith("petezah://") ? (
           <button
             type="button"
-            title={bookmarked ? "Remove bookmark" : "Bookmark this tab"}
+            title={bookmarked ? "Remove bookmark" : "Bookmark"}
             onMouseDown={(e) => e.preventDefault()}
             onClick={(e) => {
               e.stopPropagation();
@@ -573,6 +522,36 @@ export default function Toolbar({
             </motion.div>
           )}
         </AnimatePresence>
+      </div>
+
+      <div className="flex items-center gap-0.5 flex-shrink-0 ml-1">
+        <button
+          onClick={handleBack}
+          disabled={isNewTab}
+          className="p-1.5 rounded-lg hover:bg-white/5 transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
+          style={{ color: "hsla(0,0%,100%,0.78)" }}
+          title="Previous"
+        >
+          <ArrowLeft size={13} />
+        </button>
+        <button
+          onClick={handleForward}
+          disabled={isNewTab}
+          className="p-1.5 rounded-lg hover:bg-white/5 transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
+          style={{ color: "hsla(0,0%,100%,0.78)" }}
+          title="Next"
+        >
+          <ArrowRight size={13} />
+        </button>
+        <button
+          onClick={handleReload}
+          disabled={isNewTab}
+          className="p-1.5 rounded-lg hover:bg-white/5 transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
+          style={{ color: "hsla(0,0%,100%,0.78)" }}
+          title="Refresh"
+        >
+          <RotateCw size={12} />
+        </button>
       </div>
 
       <div className="flex items-center gap-0.5 flex-shrink-0" style={{ color: "hsla(0,0%,100%,0.78)" }}>
@@ -675,9 +654,9 @@ export default function Toolbar({
                   style={{ scrollbarWidth: "none" }}
                 >
                   {([
-                    { label: "New Tab", icon: Plus, kbd: sc.newTab, run: () => onNewTab?.() },
-                    { label: "Close Tab", icon: X, kbd: sc.closeTab, run: () => onCloseTab?.() },
-                    { label: "Close All Tabs", icon: X, run: () => onCloseAllTabs?.() },
+                    { label: "New page", icon: Plus, kbd: sc.newTab, run: () => onNewTab?.() },
+                    { label: "Close page", icon: X, kbd: sc.closeTab, run: () => onCloseTab?.() },
+                    { label: "Close all", icon: X, run: () => onCloseAllTabs?.() },
                   ] as const).map((item) => (
                     <button
                       key={item.label}

@@ -219,7 +219,7 @@ const TabItem = forwardRef<HTMLDivElement, TabItemProps>(
             }}
             onPointerDown={(e) => e.stopPropagation()}
             className="p-1 rounded-lg hover:bg-destructive/20 transition-colors"
-            title="Close"
+            title="Dismiss"
           >
             <X size={11} className="text-foreground/50" />
           </button>

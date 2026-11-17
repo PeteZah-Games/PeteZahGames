@@ -31,7 +31,7 @@ export default function StatusBar({ tabCount, onOpenTrending }: StatusBarProps) 
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="flex items-center justify-between px-4 py-1.5 flex-shrink-0 chrome-bar"
+      className="flex items-center justify-between px-4 py-1.5 flex-shrink-0 shell-row"
       style={{
         borderTop: "1px solid hsla(210, 40%, 80%, 0.08)",
         fontFamily: "plusjakartasans-obf, ui-sans-serif, system-ui, sans-serif",

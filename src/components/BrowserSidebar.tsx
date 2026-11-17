@@ -102,7 +102,7 @@ export default function Sidebar({
     <motion.aside
       animate={{ width: collapsed ? collapsedWidth : expandedWidth }}
       transition={{ type: "spring", duration: 0.4, bounce: 0.1 }}
-      className="h-full flex flex-col overflow-hidden flex-shrink-0 chrome-bar browser-sidebar min-h-0"
+      className="h-full flex flex-col overflow-hidden flex-shrink-0 shell-row browser-sidebar min-h-0"
       style={{
         borderRight: "1px solid hsla(210, 40%, 80%, 0.08)",
       }}
@@ -208,7 +208,7 @@ export default function Sidebar({
               onClick={onAddTab}
               className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5 transition-all"
               style={{ color: "hsla(0,0%,100%,0.78)" }}
-              title="New Tab"
+              title="New page"
             >
               <Plus size={13} />
             </button>
@@ -314,7 +314,7 @@ export default function Sidebar({
               }}
             >
               <Plus size={12} />
-              <span className="tracking-wide">New Tab</span>
+              <span className="tracking-wide">New page</span>
             </button>
 
             <div className="flex items-center gap-2 px-2 pt-1.5">

@@ -74,12 +74,14 @@
 .lite-device .nt-search,
 .lite-device .glass-subtle,
 .lite-device .chrome-bar,
+.lite-device .shell-row,
 .chromeos .glass,
 .chromeos .glass-heavy,
 .chromeos .glass-search,
 .chromeos .nt-search,
 .chromeos .glass-subtle,
-.chromeos .chrome-bar {
+.chromeos .chrome-bar,
+.chromeos .shell-row {
   backdrop-filter: blur(8px) saturate(1.1) !important;
   -webkit-backdrop-filter: blur(8px) saturate(1.1) !important;
 }
@@ -148,14 +150,17 @@
     backdrop-filter: blur(14px) saturate(1.2);
     -webkit-backdrop-filter: blur(14px) saturate(1.2);
   }
-  .chrome-bar {
+  .chrome-bar,
+  .shell-row {
     background: hsla(220, 35%, 6%, 0.55);
     backdrop-filter: blur(18px) saturate(1.25);
     -webkit-backdrop-filter: blur(18px) saturate(1.25);
     color: hsla(0, 0%, 100%, 0.88);
   }
   .chrome-bar button,
-  .chrome-bar svg {
+  .chrome-bar svg,
+  .shell-row button,
+  .shell-row svg {
     color: inherit;
   }
   .space-beams {

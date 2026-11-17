@@ -568,7 +568,7 @@ function NewTabSearchBar({
           onKeyDown={(e) => {
             if (e.key === "Enter") handleSubmit();
           }}
-          placeholder="Find a page or search…"
+          placeholder="Look up a topic…"
           className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none relative z-[1]"
           spellCheck={false}
         />
