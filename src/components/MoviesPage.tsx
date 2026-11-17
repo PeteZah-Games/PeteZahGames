@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Play, X, Film, Search, Heart, ArrowLeft, Tv, Star, Clapperboard, Sparkles,
-  ChevronLeft, ChevronRight, Info, Loader2,
+  ChevronLeft, ChevronRight, Info, Loader2, Captions,
 } from "lucide-react";
 import { CoverImg } from "@/lib/mediaCover";
 import { pxEncode, pxReady } from "@/lib/px";
@@ -134,9 +134,48 @@ const DEFAULT_REGION = "default";
 const TOR_REGION = "tor";
 const BLACK_FAIL_MS = 20000;
 /** Don't skip a FrameX source until it's had this long to start. */
-const SOURCE_MIN_MS = 12000;
+const SOURCE_MIN_MS = 16000;
 /** Auto-try this many FrameX HLS urls before embed fallback. */
 const MAX_AUTO_SOURCES = 4;
+
+type SubtitleTrack = {
+  url: string;
+  label?: string;
+  language?: string;
+  format?: string;
+  isDefault?: boolean;
+};
+
+type StreamSource = {
+  url: string;
+  type?: string;
+  quality?: string;
+  provider?: string;
+  providerName?: string;
+  headers?: Record<string, string>;
+  dead?: boolean;
+  label?: string;
+  language?: string;
+  height?: number;
+  subtitles?: SubtitleTrack[];
+};
+
+/** Prefer English / higher quality — drop obvious clipbait leftovers client-side too. */
+function rankStreams(list: StreamSource[]): StreamSource[] {
+  const junk = /bigtits|big.?boobs|xxx|porn|nsfw|hentai/i;
+  const scored = list
+    .filter((s) => s?.url && !junk.test(s.url) && !junk.test(s.label || ""))
+    .map((s) => {
+      const lang = String(s.language || "").toLowerCase();
+      const label = `${s.label || ""} ${s.quality || ""} ${s.providerName || ""}`;
+      const en =
+        lang === "en" || /\benglish\b/i.test(label) || /\|\s*english\b/i.test(label) ? 2 : lang && lang !== "und" ? 0 : 1;
+      const height = Number(s.height) || parseInt(String(s.quality || ""), 10) || 0;
+      return { s, en, height };
+    });
+  scored.sort((a, b) => b.en - a.en || b.height - a.height);
+  return scored.map((x) => x.s);
+}
 /**
  * Embed hops — Tor first (same idea as routing FrameX through Tor),
  * then default wisp, then more Tor providers.
@@ -447,24 +486,17 @@ function MoviePlayer({
   const [barVisible, setBarVisible] = useState(true);
   const [hopIndex, setHopIndex] = useState(0);
   const [sourceNote, setSourceNote] = useState("");
-  const [streams, setStreams] = useState<
-    Array<{
-      url: string;
-      type?: string;
-      quality?: string;
-      provider?: string;
-      providerName?: string;
-      headers?: Record<string, string>;
-      dead?: boolean;
-      label?: string;
-    }>
-  >([]);
+  const [streams, setStreams] = useState<StreamSource[]>([]);
   const [streamIdx, setStreamIdx] = useState(0);
   const [playMode, setPlayMode] = useState<"direct" | "embed" | null>(null);
   const [directKey, setDirectKey] = useState(0);
   /** Bumped only when embed must remount (Tor hop / manual provider). */
   const [embedNonce, setEmbedNonce] = useState(0);
+  const [subtitles, setSubtitles] = useState<SubtitleTrack[]>([]);
+  const [ccOn, setCcOn] = useState(true);
+  const [ccLabel, setCcLabel] = useState("");
   const hideBarTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const videoElRef = useRef<HTMLVideoElement | null>(null);
   const autoHopRef = useRef(true);
   const hopIndexRef = useRef(0);
   const streamIdxRef = useRef(0);
@@ -506,6 +538,10 @@ function MoviePlayer({
     setPlayMode(null);
     setDirectKey(0);
     setEmbedNonce(0);
+    setSubtitles([]);
+    setCcLabel("");
+    setCcOn(true);
+    videoElRef.current = null;
   }, [state.tmdbId, state.type]);
 
   useEffect(() => {
@@ -612,23 +648,68 @@ function MoviePlayer({
       return u;
     };
 
-    const uniqStreams = (list: typeof streams) => {
-      const best = new Map<string, (typeof streams)[number]>();
+    const uniqStreams = (list: StreamSource[]) => {
+      const best = new Map<string, StreamSource>();
       for (const s of list) {
         if (!s?.url) continue;
         const key = `${s.providerName || s.provider || "src"}:${s.type || ""}:${s.quality || s.url}`;
         const cur = best.get(key);
         const q = (x?: string) => parseInt(String(x || ""), 10) || 0;
-        if (!cur || q(s.quality) > q(cur.quality)) best.set(key, { ...s });
+        if (!cur || q(s.quality) > q(cur.quality) || (s.height || 0) > (cur.height || 0)) {
+          best.set(key, { ...s });
+        }
       }
-      const unique = [...best.values()];
+      const unique = rankStreams([...best.values()]);
       const count: Record<string, number> = {};
       for (const s of unique) {
         const base = s.providerName || s.provider || "Server";
         count[base] = (count[base] || 0) + 1;
-        s.label = base + (count[base] > 1 ? ` ${count[base]}` : "") + (s.quality ? ` ${s.quality}` : "");
+        const langTag =
+          s.language && s.language !== "und" && !/\benglish\b/i.test(s.quality || "")
+            ? ` · ${s.language.toUpperCase()}`
+            : "";
+        s.label =
+          base +
+          (count[base] > 1 ? ` ${count[base]}` : "") +
+          (s.quality ? ` ${s.quality}` : "") +
+          langTag;
       }
       return unique;
+    };
+
+    const attachSubtitles = (video: HTMLVideoElement, tracks: SubtitleTrack[]) => {
+      // Clear previous <track> nodes.
+      video.querySelectorAll("track").forEach((n) => n.remove());
+      const list = tracks.slice(0, 12);
+      if (!list.length) {
+        setSubtitles([]);
+        setCcLabel("");
+        return;
+      }
+      setSubtitles(list);
+      let defaultIdx = list.findIndex((t) => t.isDefault || t.language === "en");
+      if (defaultIdx < 0) defaultIdx = 0;
+      list.forEach((t, i) => {
+        const track = document.createElement("track");
+        track.kind = "subtitles";
+        track.label = t.label || t.language || `CC ${i + 1}`;
+        track.srclang = t.language && t.language !== "und" ? t.language : "en";
+        track.src = `/api/tmdb/stream/proxy?url=${encodeURIComponent(t.url)}`;
+        if (i === defaultIdx && ccOn) track.default = true;
+        video.appendChild(track);
+      });
+      const applyMode = () => {
+        const textTracks = video.textTracks;
+        if (!textTracks) return;
+        for (let i = 0; i < textTracks.length; i++) {
+          textTracks[i].mode = ccOn && i === defaultIdx ? "showing" : "disabled";
+        }
+        if (ccOn && list[defaultIdx]) setCcLabel(list[defaultIdx].label || "CC");
+        else setCcLabel("");
+      };
+      // Tracks become available async after cue load.
+      video.addEventListener("loadedmetadata", applyMode, { once: true });
+      setTimeout(applyMode, 400);
     };
 
     const startEmbed = async (regionOverride?: string) => {
@@ -708,13 +789,22 @@ function MoviePlayer({
       video.controls = true;
       video.playsInline = true;
       video.setAttribute("playsinline", "");
+      video.setAttribute("controlslist", "nodownload");
       video.autoplay = true;
       video.preload = "auto";
+      video.crossOrigin = "anonymous";
       video.dataset.pzDirect = "1";
       video.dataset.pzReady = "1";
+      // Leave the bottom strip clear so native controls stay clickable under the top info bar.
       video.style.cssText =
-        "position:absolute;inset:0;width:100%;height:100%;border:none;background:#000;object-fit:contain;";
+        "position:absolute;inset:0;width:100%;height:100%;border:none;background:#000;object-fit:contain;z-index:1;";
       host.appendChild(video);
+      videoElRef.current = video;
+      const trackList =
+        Array.isArray(stream.subtitles) && stream.subtitles.length
+          ? stream.subtitles
+          : subtitles;
+      attachSubtitles(video, trackList);
 
       const stub = document.createElement("iframe");
       stub.dataset.pzReady = "1";
@@ -886,8 +976,13 @@ function MoviePlayer({
         const d = await r.json().catch(() => null);
         const list = uniqStreams(Array.isArray(d?.streams) ? d.streams : []);
         if (!cancelled && list.length) {
+          const tracks =
+            list.find((s) => Array.isArray(s.subtitles) && s.subtitles.length)?.subtitles ||
+            [];
+          setSubtitles(tracks);
           setStreams(list);
           streamsRef.current = list;
+          // English-first list: index 0 is the good default.
           await playDirect(list, 0, true);
           return;
         }
@@ -970,7 +1065,30 @@ function MoviePlayer({
   const bumpBar = () => {
     setBarVisible(true);
     if (hideBarTimer.current) clearTimeout(hideBarTimer.current);
-    hideBarTimer.current = setTimeout(() => setBarVisible(false), 2800);
+    hideBarTimer.current = setTimeout(() => setBarVisible(false), 3200);
+  };
+
+  const toggleCc = () => {
+    const next = !ccOn;
+    setCcOn(next);
+    const video = videoElRef.current;
+    const tracks = video?.textTracks;
+    if (!tracks || !tracks.length) {
+      setCcLabel(next ? "CC…" : "");
+      return;
+    }
+    let shown = "";
+    for (let i = 0; i < tracks.length; i++) {
+      const prefer =
+        next &&
+        (tracks[i].language === "en" ||
+          /english/i.test(tracks[i].label || "") ||
+          i === 0);
+      const enable = prefer && !shown;
+      tracks[i].mode = enable ? "showing" : "disabled";
+      if (enable) shown = tracks[i].label || "CC";
+    }
+    setCcLabel(shown);
   };
 
   useEffect(() => {
@@ -1015,65 +1133,31 @@ function MoviePlayer({
       <div
         style={{ position: "absolute", inset: 0, background: "#000", display: "flex", flexDirection: "column" }}
         onMouseMove={bumpBar}
-        onClick={bumpBar}
       >
-        <div style={{ flex: 1, position: "relative", minHeight: 0 }}>
-          <div ref={frameHostRef} style={{ position: "absolute", inset: 0 }} />
-          {!frameReady && (
-            <div style={{
-              position: "absolute", inset: 0, display: "flex", alignItems: "center",
-              justifyContent: "center", color: S.textMuted, fontSize: 12, zIndex: 2,
-            }}>
-              {loadError || "Loading player…"}
-            </div>
-          )}
-          {sourceNote ? (
-            <div style={{
-              position: "absolute", inset: 0, zIndex: 6, display: "flex",
-              alignItems: "center", justifyContent: "center", pointerEvents: "none",
-              background: sourceNote.startsWith("Switching") ? "hsla(220, 30%, 4%, 0.55)" : "transparent",
-            }}>
-              <div style={{
-                display: "flex", alignItems: "center", gap: 10, padding: "10px 14px",
-                borderRadius: 999, background: "hsla(220, 28%, 10%, 0.88)",
-                border: `1px solid ${S.border}`, color: S.text, fontSize: 12, fontWeight: 650,
-                backdropFilter: "blur(12px)",
-              }}>
-                {sourceNote.startsWith("Switching") ? <Loader2 size={14} className="animate-spin" /> : null}
-                <span>
-                  {sourceNote}
-                  {autoHopRef.current && hopIndex > 0 && sourceNote.startsWith("Switching")
-                    ? ` ${AUTO_SOURCE_HOPS[hopIndex]?.label || ""}`
-                    : ""}
-                </span>
-              </div>
-            </div>
-          ) : null}
-        </div>
-
+        {/* Top info bar — keeps native video controls free at the bottom. */}
         <div
           style={{
             position: "absolute",
             left: 0,
             right: 0,
-            bottom: 0,
+            top: 0,
             zIndex: 8,
-            padding: "10px 12px 12px",
-            background: "linear-gradient(to top, hsla(220,35%,4%,0.88), transparent)",
+            padding: "10px 12px 18px",
+            background: "linear-gradient(to bottom, hsla(220,35%,4%,0.9), transparent)",
             opacity: barVisible ? 1 : 0,
-            transform: barVisible ? "translateY(0)" : "translateY(8px)",
+            transform: barVisible ? "translateY(0)" : "translateY(-8px)",
             transition: "opacity 0.25s ease, transform 0.25s ease",
             pointerEvents: barVisible ? "auto" : "none",
           }}
         >
           <div style={{
             display: "flex", alignItems: "center", gap: 8,
-            background: "hsla(220, 28%, 10%, 0.72)",
+            background: "hsla(220, 28%, 10%, 0.78)",
             border: `1px solid ${S.border}`,
             borderRadius: 999,
             padding: "6px 8px 6px 6px",
             backdropFilter: "blur(16px)",
-            maxWidth: 920,
+            maxWidth: 960,
             margin: "0 auto",
           }}>
             <button
@@ -1088,7 +1172,7 @@ function MoviePlayer({
             >
               <ArrowLeft size={12} />
             </button>
-            <div style={{ minWidth: 0, flex: "0 1 140px" }}>
+            <div style={{ minWidth: 0, flex: "0 1 160px" }}>
               <p style={{ fontSize: 10, fontWeight: 700, color: S.text, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {state.title}
               </p>
@@ -1154,8 +1238,27 @@ function MoviePlayer({
               <div style={{ flex: 1 }} />
             )}
 
+            {(subtitles.length > 0 || playMode === "direct") && (
+              <button
+                type="button"
+                onClick={toggleCc}
+                title={ccOn ? "Turn captions off" : "Turn captions on"}
+                style={{
+                  display: "flex", alignItems: "center", gap: 4,
+                  padding: "4px 8px", borderRadius: 999, flexShrink: 0,
+                  border: `1px solid ${ccOn ? S.borderFocus : S.border}`,
+                  background: ccOn ? S.accentDim : "transparent",
+                  color: ccOn ? S.text : S.textMuted,
+                  fontSize: 9, fontWeight: 700, cursor: "pointer",
+                }}
+              >
+                <Captions size={12} />
+                {ccOn ? (ccLabel ? "CC" : "CC") : "CC off"}
+              </button>
+            )}
+
             {streams.length && playMode !== "embed" ? (
-              <div style={{ display: "flex", gap: 4, overflowX: "auto", maxWidth: 280, scrollbarWidth: "none" }}>
+              <div style={{ display: "flex", gap: 4, overflowX: "auto", maxWidth: 300, scrollbarWidth: "none" }}>
                 {streams.map((s, i) => (
                   <button
                     key={`${s.label}-${i}`}
@@ -1201,6 +1304,47 @@ function MoviePlayer({
               </select>
             )}
           </div>
+        </div>
+
+        <div style={{ flex: 1, position: "relative", minHeight: 0 }}>
+          <div
+            ref={frameHostRef}
+            style={{ position: "absolute", inset: 0 }}
+            onMouseMove={bumpBar}
+          />
+          {!frameReady && (
+            <div style={{
+              position: "absolute", inset: 0, display: "flex", alignItems: "center",
+              justifyContent: "center", color: S.textMuted, fontSize: 12, zIndex: 2,
+              pointerEvents: "none",
+            }}>
+              {loadError || "Loading player…"}
+            </div>
+          )}
+          {sourceNote ? (
+            <div style={{
+              position: "absolute", inset: 0, zIndex: 6, display: "flex",
+              alignItems: "center", justifyContent: "center", pointerEvents: "none",
+              background: sourceNote.startsWith("Switching") ? "hsla(220, 30%, 4%, 0.55)" : "transparent",
+            }}>
+              <div style={{
+                display: "flex", alignItems: "center", gap: 10, padding: "10px 14px",
+                borderRadius: 999, background: "hsla(220, 28%, 10%, 0.88)",
+                border: `1px solid ${S.border}`, color: S.text, fontSize: 12, fontWeight: 650,
+                backdropFilter: "blur(12px)",
+              }}>
+                {sourceNote.startsWith("Switching") || sourceNote.startsWith("Finding") || sourceNote.startsWith("Loading")
+                  ? <Loader2 size={14} className="animate-spin" />
+                  : null}
+                <span>
+                  {sourceNote}
+                  {autoHopRef.current && hopIndex > 0 && sourceNote.startsWith("Switching")
+                    ? ` ${AUTO_SOURCE_HOPS[hopIndex]?.label || ""}`
+                    : ""}
+                </span>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     );

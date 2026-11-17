@@ -2,6 +2,7 @@ import express from 'express';
 import fetch from 'node-fetch';
 import { bumpUsage } from '../utils/usage-daily.js';
 import { scrapeAll, PROVIDERS as X8_PROVIDERS } from '../lib/movie-streams/providers.js';
+import { torFetch } from '../lib/movie-streams/torFetch.js';
 
 const router = express.Router();
 const TMDB_BASE = 'https://api.themoviedb.org/3';
@@ -428,7 +429,13 @@ router.get('/stream/proxy', async (req, res) => {
       headers.Range = req.headers.range;
     }
 
-    const r = await fetch(target, { headers, signal: ac.signal, redirect: 'follow' });
+    // FrameX / Citadel CDNs often only resolve cleanly via Tor (same as resolve).
+    const r = await torFetch(target, {
+      preferTor: true,
+      timeoutMs: 28000,
+      headers,
+    });
+    if (ac.signal.aborted) return;
     if (!r.ok) {
       console.log('[stream-proxy] upstream', r.status, target.slice(0, 120));
       return res.status(r.status).end();
@@ -445,6 +452,12 @@ router.get('/stream/proxy', async (req, res) => {
     }
     const head = buf.toString('utf8', 0, Math.min(16, buf.length));
     const isPlaylist = ct.includes('mpegurl') || head.trimStart().startsWith('#EXTM3U');
+    const isVtt =
+      ct.includes('text/vtt') ||
+      ct.includes('application/x-subrip') ||
+      head.trimStart().startsWith('WEBVTT') ||
+      /\.vtt(\?|$)/i.test(target) ||
+      /\.srt(\?|$)/i.test(target);
 
     if (isPlaylist) {
       let text = buf.toString('utf8');
@@ -464,6 +477,16 @@ router.get('/stream/proxy', async (req, res) => {
         .replace(/URI="([^"]+)"/g, (_m, ref) => `URI="${wrap(ref)}"`);
       res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
       return res.send(text);
+    }
+
+    if (isVtt) {
+      res.setHeader(
+        'Content-Type',
+        head.trimStart().startsWith('WEBVTT') || /\.vtt(\?|$)/i.test(target)
+          ? 'text/vtt; charset=utf-8'
+          : 'application/x-subrip; charset=utf-8'
+      );
+      return res.end(buf);
     }
 
     res.status(r.status);
